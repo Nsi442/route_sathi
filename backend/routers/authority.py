@@ -39,7 +39,7 @@ from backend.schemas.reports import (
     StatusUpdateRequest,
     ValidationRequest,
 )
-from backend.services import audit, notifications
+from backend.services import audit, facility_lifecycle, notifications
 from backend.services.csv_import import CsvFormatError, import_reports
 from backend.services.serializers import report_out, task_out
 from backend.utils.datetimes import utcnow
@@ -320,6 +320,12 @@ def validate_report(
     report.updated_at = utcnow()
     db.flush()
 
+    # A confirmed barrier takes the facility at that place off the map as
+    # usable, so citizens stop being routed to something that does not work.
+    blocked = None
+    if payload.validation_status == "Valid":
+        blocked = facility_lifecycle.mark_blocked_from_report(db, report)
+
     notifications.report_validated(db, report.user_id, report.report_id, payload.validation_status)
     audit.record(
         db,
@@ -328,7 +334,11 @@ def validate_report(
         action="report.validate",
         entity_type="report",
         entity_id=report.report_id,
-        metadata={"validation_status": payload.validation_status, "note": payload.note},
+        metadata={
+            "validation_status": payload.validation_status,
+            "note": payload.note,
+            "facility_blocked": blocked.facility_id if blocked else None,
+        },
     )
     db.commit()
     db.refresh(report)
@@ -623,6 +633,8 @@ def verify_resolution(
     ).scalar_one_or_none()
     now = utcnow()
 
+    facility = None
+    facility_created = False
     if payload.approved:
         task.status = "Verified"
         task.verified_by = current_user.user_id
@@ -631,6 +643,11 @@ def verify_resolution(
         if report is not None:
             report.status = "Resolved"
             report.updated_at = now
+            # The barrier is gone, so this place becomes a verified accessible
+            # facility: green on the citizen map instead of a red issue.
+            facility, facility_created = facility_lifecycle.promote_report_to_facility(
+                db, report, verified_by=current_user.user_id
+            )
             notifications.report_resolved(db, report.user_id, report.report_id)
         if task.assigned_to:
             notifications.task_verified(db, task.assigned_to, task.report_id, task.task_id)
@@ -655,7 +672,12 @@ def verify_resolution(
         action="task.verify" if payload.approved else "task.reject",
         entity_type="task",
         entity_id=task.task_id,
-        metadata={"report_id": task.report_id, "notes": payload.notes},
+        metadata={
+            "report_id": task.report_id,
+            "notes": payload.notes,
+            "facility_id": facility.facility_id if facility else None,
+            "facility_created": facility_created,
+        },
     )
     db.commit()
     db.refresh(task)

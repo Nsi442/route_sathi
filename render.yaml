@@ -43,6 +43,8 @@ services:
         sync: false
       - key: S3_BUCKET
         sync: false
+      - key: S3_ENDPOINT_URL   # leave unset for Amazon S3; set for R2 etc.
+        sync: false
 
       # Only needed if a browser calls this service directly rather than
       # through the Vercel proxy. Set to your Vercel domain.

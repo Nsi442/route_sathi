@@ -22,6 +22,7 @@ export default function UserShell({
   narrow = false,
   action,
   hideTabs = false,
+  hideHeader = false,
 }) {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -47,6 +48,7 @@ export default function UserShell({
         <a className="skip-link" href="#main">
           Skip to main content
         </a>
+        {!hideHeader && (
         <header className={`app-topbar ${plainHeader ? 'is-plain' : ''}`.trim()}>
           {back && (
             <button
@@ -75,6 +77,7 @@ export default function UserShell({
             </button>
           )}
         </header>
+        )}
 
         <main
           id="main"

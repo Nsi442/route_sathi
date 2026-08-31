@@ -59,7 +59,7 @@ GiST indexes and triggers. Nothing to do by hand.
 
 ## 2. Amazon S3 — evidence images
 
-Follow [S3.md](S3.md) to create a private bucket and an IAM user limited to
+Follow [STORAGE.md](STORAGE.md) to create a private bucket and an IAM user limited to
 `PutObject` / `GetObject` / `DeleteObject` on that bucket. Note the access key,
 secret key, region and bucket name.
 

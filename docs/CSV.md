@@ -1,7 +1,16 @@
 # CSV report import
 
-Bulk import lives on the **authority dashboard** — the first page of the portal — not on
-the reports page.
+**Citizen reports do not need this.** Anything submitted in the RouteSathi app is
+written straight to the `reports` table by `POST /api/user/reports` and shows up in the
+authority Reports list immediately, with `source = "Citizen App"`.
+
+CSV import is a separate, optional path for reports that were **collected outside the
+app** — a field survey spreadsheet, an older municipal complaints register, an NGO
+partner's export. Both paths land in the same table and are told apart by the `source`
+column, so the authority works one list regardless of where a report came from.
+
+It lives on the **authority dashboard** — the first page of the portal — not on the
+reports page.
 
 ```
 Authority → CSV selected → React → Axios

@@ -49,14 +49,26 @@ export default function CsvUpload({ onImported }) {
     <div className="card">
       <div className="card-header">
         <div>
-          <h2>Upload CSV Reports</h2>
+          <h2>Import Reports from CSV</h2>
           <div className="card-title-sub">
-            Bulk-load reports from a municipal or partner export
+            Optional. For reports collected outside the app.
           </div>
         </div>
       </div>
 
       <div className="card-body">
+        <div className="alert alert-info mb-3" style={{ display: 'block' }}>
+          <strong>Citizen reports arrive here automatically.</strong> Anything
+          submitted in the RouteSathi app appears in{' '}
+          <strong>Reports</strong> the moment it is sent — nothing to upload.
+          <div className="tiny mt-2">
+            Use this only to bring in reports gathered elsewhere: a field survey
+            spreadsheet, an older complaints register, or a partner NGO&apos;s
+            export. Both sources land in the same reports list and are told apart
+            by the <code>source</code> column.
+          </div>
+        </div>
+
         <div
           className={`upload-panel ${dragging ? 'is-dragging' : ''}`.trim()}
           onDragOver={(event) => {

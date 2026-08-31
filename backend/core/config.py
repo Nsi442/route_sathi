@@ -74,6 +74,9 @@ class Settings:
         self.s3_presign_expiry: int = _int("S3_PRESIGN_EXPIRY", 900)
         self.aws_access_key_id: str = os.getenv("AWS_ACCESS_KEY_ID", "").strip()
         self.aws_secret_access_key: str = os.getenv("AWS_SECRET_ACCESS_KEY", "").strip()
+        # Custom endpoint for S3-compatible providers (Cloudflare R2, Supabase
+        # Storage, Backblaze B2, MinIO). Empty means real Amazon S3.
+        self.s3_endpoint_url: str = os.getenv("S3_ENDPOINT_URL", "").strip()
 
         # --- machine learning -------------------------------------------
         self.ml_enabled: bool = _bool("ML_ENABLED", True)
@@ -113,8 +116,18 @@ class Settings:
 
     @property
     def s3_enabled(self) -> bool:
-        """True when a real S3 bucket is reachable with the configured creds."""
+        """True when a bucket is reachable with the configured credentials."""
         return bool(self.s3_bucket and self.aws_access_key_id and self.aws_secret_access_key)
+
+    @property
+    def is_aws_s3(self) -> bool:
+        """True for real Amazon S3, false for an S3-compatible provider.
+
+        Providers such as Cloudflare R2 speak the S3 API but reject AWS-only
+        request headers like per-object ACLs, so a few options are sent only
+        when the endpoint really is AWS.
+        """
+        return self.s3_enabled and not self.s3_endpoint_url
 
 
 @lru_cache(maxsize=1)

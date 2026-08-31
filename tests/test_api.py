@@ -793,3 +793,199 @@ def test_citizen_cannot_request_a_resolution_image_link(client):
         "/api/maintenance/tasks/MT-5001/resolution/link", headers=_auth(token)
     )
     assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# A fixed report becomes an accessible facility on the map
+# ---------------------------------------------------------------------------
+def _facility_at(client, token, lat, lng, ftype):
+    """Nearest facility of a type within 100 m, via the public nearby search."""
+    items = client.get(
+        "/api/facilities/nearby",
+        params={"latitude": lat, "longitude": lng, "radius": 100, "type": ftype},
+        headers=_auth(token),
+    ).json()
+    return items[0] if items else None
+
+
+def _report_and_confirm_barrier(client, *, issue_type, latitude, longitude, location_text):
+    """Submit a report and have the authority confirm it. Returns the report id."""
+    citizen = _login(client, "citizen@test.app")
+    authority = _login(client, "authority@test.app")
+    report_id = client.post(
+        "/api/user/reports/json",
+        json={
+            "issue_type": issue_type,
+            "latitude": latitude,
+            "longitude": longitude,
+            "severity": "High",
+            "description": "Barrier reported by the accessibility test.",
+            "location_text": location_text,
+        },
+        headers=_auth(citizen),
+    ).json()["report_id"]
+    client.post(
+        f"/api/authority/reports/{report_id}/validate",
+        json={"validation_status": "Valid"},
+        headers=_auth(authority),
+    )
+    return report_id
+
+
+def _repair_and_verify(client, report_id, *, approved=True):
+    """Assign, fix and have the authority verify (or reject) the repair."""
+    authority = _login(client, "authority@test.app")
+    maintenance = _login(client, "maintenance@test.app")
+    task_id = client.post(
+        f"/api/authority/reports/{report_id}/assign",
+        json={"assigned_team": "Team Alpha", "assigned_to": "MN201"},
+        headers=_auth(authority),
+    ).json()["task_id"]
+    client.post(
+        f"/api/maintenance/tasks/{task_id}/resolution",
+        files={"photo": ("fixed.png", io.BytesIO(PNG_BYTES), "image/png")},
+        headers=_auth(maintenance),
+    )
+    client.post(
+        f"/api/maintenance/tasks/{task_id}/status",
+        json={"status": "Completed"},
+        headers=_auth(maintenance),
+    )
+    client.post(
+        f"/api/authority/tasks/{task_id}/verify",
+        json={"approved": approved},
+        headers=_auth(authority),
+    )
+    return task_id
+
+
+def test_confirming_a_barrier_blocks_the_facility_on_the_map(client):
+    """Validating a 'Ramp Blocked' report turns that ramp red. Uses FAC-1."""
+    citizen = _login(client, "citizen@test.app")
+
+    before = _facility_at(client, citizen, 22.5745, 88.3639, "Ramp")
+    assert before["facility_id"] == "FAC-1"
+    assert before["status"] == "Verified"
+
+    report_id = _report_and_confirm_barrier(
+        client,
+        issue_type="Ramp Blocked",
+        latitude=22.5745,
+        longitude=88.36395,
+        location_text="College Street, Kolkata",
+    )
+    assert report_id
+
+    after = _facility_at(client, citizen, 22.5745, 88.3639, "Ramp")
+    assert after["facility_id"] == "FAC-1"
+    assert after["status"] == "Blocked"
+
+
+def test_reporting_alone_does_not_change_the_map(client):
+    """Only a human decision moves a facility - an unreviewed report must not."""
+    citizen = _login(client, "citizen@test.app")
+
+    before = _facility_at(client, citizen, 22.5533, 88.3521, "Toilet")
+    assert before["facility_id"] == "FAC-3"
+    assert before["status"] == "Available"
+
+    client.post(
+        "/api/user/reports/json",
+        json={
+            "issue_type": "Other",
+            "latitude": 22.5533,
+            "longitude": 88.35215,
+            "severity": "High",
+            "description": "Submitted but not yet reviewed.",
+        },
+        headers=_auth(citizen),
+    )
+
+    after = _facility_at(client, citizen, 22.5533, 88.3521, "Toilet")
+    assert after["status"] == "Available"
+
+
+def test_verified_repair_turns_the_facility_green_again(client):
+    """Full red -> green round trip on an existing facility. Uses FAC-2."""
+    citizen = _login(client, "citizen@test.app")
+
+    before = _facility_at(client, citizen, 22.5726, 88.4331, "Ramp")
+    assert before["facility_id"] == "FAC-2"
+    assert before["status"] == "Available"
+
+    report_id = _report_and_confirm_barrier(
+        client,
+        issue_type="Ramp Blocked",
+        latitude=22.5726,
+        longitude=88.43315,
+        location_text="Salt Lake, Kolkata",
+    )
+    assert _facility_at(client, citizen, 22.5726, 88.4331, "Ramp")["status"] == "Blocked"
+
+    _repair_and_verify(client, report_id)
+
+    restored = _facility_at(client, citizen, 22.5726, 88.4331, "Ramp")
+    assert restored["facility_id"] == "FAC-2"
+    assert restored["status"] == "Verified"
+
+    # Restored in place, not duplicated onto the map.
+    ramps = client.get(
+        "/api/facilities/nearby",
+        params={"latitude": 22.5726, "longitude": 88.4331, "radius": 100, "type": "Ramp"},
+        headers=_auth(citizen),
+    ).json()
+    assert len(ramps) == 1
+
+
+def test_repair_where_nothing_existed_creates_a_new_facility(client):
+    """'Stairs / No Ramp' fixed means a ramp now exists that did not before."""
+    citizen = _login(client, "citizen@test.app")
+    authority = _login(client, "authority@test.app")
+    maintenance = _login(client, "maintenance@test.app")
+
+    spot = {"latitude": 22.6401, "longitude": 88.4402}
+    assert _facility_at(client, citizen, spot["latitude"], spot["longitude"], "Ramp") is None
+
+    report_id = _report_and_confirm_barrier(
+        client,
+        issue_type="Stairs / No Ramp",
+        **spot,
+        location_text="Rajarhat, Kolkata",
+    )
+    _repair_and_verify(client, report_id)
+
+    created = _facility_at(client, citizen, spot["latitude"], spot["longitude"], "Ramp")
+    assert created is not None
+    assert created["status"] == "Verified"
+    assert created["name"] == "Rajarhat Ramp"
+    assert created["source"].startswith("Verified repair")
+
+    # And the report no longer shows as an open issue on the map.
+    pins = client.get(
+        "/api/reports/map",
+        params={**spot, "radius": 200, "only_open": True},
+        headers=_auth(citizen),
+    ).json()
+    assert report_id not in [p["report_id"] for p in pins]
+
+
+def test_rejected_repair_leaves_the_facility_blocked(client):
+    """Sending work back must not turn the map green prematurely."""
+    citizen = _login(client, "citizen@test.app")
+    authority = _login(client, "authority@test.app")
+    maintenance = _login(client, "maintenance@test.app")
+
+    report_id = _report_and_confirm_barrier(
+        client,
+        issue_type="Blocked Crossing",
+        latitude=22.6802,
+        longitude=88.4803,
+        location_text="Barrackpore, Kolkata",
+    )
+    _repair_and_verify(client, report_id, approved=False)
+
+    detail = client.get(
+        f"/api/authority/reports/{report_id}", headers=_auth(authority)
+    ).json()
+    assert detail["status"] == "In Progress"
+    assert detail["status"] != "Resolved"

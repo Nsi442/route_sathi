@@ -1,4 +1,4 @@
-# Amazon S3 configuration
+# Image storage
 
 Two kinds of image flow through the system:
 
@@ -21,19 +21,65 @@ Read:
   PostgreSQL → FastAPI → S3 object key → temporary presigned URL → browser
 ```
 
+## Choosing a provider
+
+The storage layer speaks the S3 API, and every major object store implements it. So
+the same code and the same four environment variables work with any of these — you are
+not tied to AWS.
+
+| Provider | Free tier | Egress cost | Setup effort |
+| --- | --- | --- | --- |
+| **Cloudflare R2** *(recommended)* | 10 GB, 1M writes/month | **None** | Create bucket, create API token. No IAM policy to write. |
+| Amazon S3 | 5 GB for 12 months | Charged per GB | Create bucket, create IAM user, attach a policy |
+| Supabase Storage | 1 GB | Charged above the tier | Create project, use the S3-compatible keys |
+| Backblaze B2 | 10 GB | Free up to 3x storage | Create bucket, create application key |
+
+**Cloudflare R2 is the simplest option** and the one to pick if you have no existing
+AWS setup: signing up takes a couple of minutes, there is no IAM policy JSON to get
+right, and egress is free — which matters here, because every evidence photo a reviewer
+opens is egress.
+
 ## Environment
 
 ```
-AWS_ACCESS_KEY_ID=AKIA...
+AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
-AWS_REGION=ap-south-1
+AWS_REGION=auto                # 'auto' for R2; a real region for AWS
 S3_BUCKET=routesathi-media
+S3_ENDPOINT_URL=              # empty for Amazon S3; the provider URL otherwise
 S3_PRESIGN_EXPIRY=900
 MAX_UPLOAD_BYTES=8388608
 ```
 
-S3 is active only when `S3_BUCKET`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are
-all set. `GET /api/health` reports `"object_storage": "s3"` when it is.
+Storage is active only when `S3_BUCKET`, `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY` are all set. `GET /api/health` names the provider it detected —
+`s3`, `cloudflare-r2`, `supabase-storage`, `backblaze-b2` or `database-fallback`.
+
+### Cloudflare R2 in five steps
+
+1. Cloudflare dashboard → **R2** → **Create bucket** → name it `routesathi-media`.
+   Leave public access off.
+2. **R2 → Manage R2 API Tokens → Create API Token**, with *Object Read & Write*
+   permission on that bucket.
+3. Copy the Access Key ID and Secret Access Key it shows you once.
+4. Copy the **S3 API** endpoint from the bucket settings — it looks like
+   `https://<account-id>.r2.cloudflarestorage.com`.
+5. Set the five variables in Render:
+
+```
+AWS_ACCESS_KEY_ID=<access key id>
+AWS_SECRET_ACCESS_KEY=<secret access key>
+AWS_REGION=auto
+S3_BUCKET=routesathi-media
+S3_ENDPOINT_URL=https://<account-id>.r2.cloudflarestorage.com
+```
+
+Nothing else changes. Uploads, presigned URLs and the private-by-default posture all
+behave the same, because R2 implements the same API.
+
+Two AWS-only request options — per-object ACLs and the `ServerSideEncryption` header —
+are sent only when `S3_ENDPOINT_URL` is empty, since R2 rejects them. R2 buckets are
+private by default and encrypted at rest regardless.
 
 ## Object keys
 
@@ -138,7 +184,7 @@ endpoint.
 
 ### Development fallback
 
-Without AWS credentials the same endpoints work, but bytes are held in the
+Without storage credentials the same endpoints work, but bytes are held in the
 `stored_files` table and the link endpoints return a URL carrying a **short-lived,
 single-resource media token** instead of a presigned URL. The token is scoped to exactly
 one report or task and expires in 15 minutes.

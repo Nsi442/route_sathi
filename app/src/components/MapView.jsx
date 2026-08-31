@@ -30,11 +30,19 @@ function markerVariant(item) {
   return 'is-verified';
 }
 
+const WHEELCHAIR = `<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
+  <circle cx="13" cy="3.6" r="2.1"/>
+  <path d="M11 7.2v5.4c0 .9.7 1.6 1.6 1.6h3.6l1.7 4.9 1.9-.7-2.1-6H14V7.2z"/>
+  <path d="M13.4 16.2a4.3 4.3 0 1 1-4.6-4.3v2.1a2.2 2.2 0 1 0 2.4 2.2z"/>
+</svg>`;
+
 function markerGlyph(item) {
   if (item.kind === 'user') return '';
   if (item.kind === 'selected') return '+';
   if (item.kind === 'report') return '!';
-  return (item.type || '?').slice(0, 1).toUpperCase();
+  // Facilities carry the international symbol of access rather than a letter,
+  // so the marker reads the same to someone who cannot read the popup.
+  return WHEELCHAIR;
 }
 
 function buildIcon(item) {

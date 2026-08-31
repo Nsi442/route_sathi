@@ -86,6 +86,20 @@ The model writes `predicted_priority` and `prediction_confidence`. Only a human 
 measurable quantity — and the confirmed values become the training set that eventually
 replaces the synthetic corpus.
 
+### The map is derived from the workflow, not maintained separately
+
+`backend/services/facility_lifecycle.py` moves `accessibility_facilities` in step with
+report decisions: validating a barrier sets the facility at that spot to `Blocked`,
+verifying the repair sets it back to `Verified` (creating it when the repair built
+something that was not there before). Matching is a spatial lookup within 40 m of the
+report, so repeated reports about one ramp converge on a single facility.
+
+The alternative — a facility table someone updates by hand — goes stale the moment the
+first repair lands. Deriving it from decisions that are already being recorded means the
+map cannot drift from the workflow. Both transitions are audit-logged with the facility
+id, and only a human decision moves the map: an unreviewed report never changes the
+record.
+
 ### Media tokens
 
 Private images cannot be loaded by an `<img>` tag pointed at a protected endpoint,

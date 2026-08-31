@@ -59,13 +59,18 @@ def _client():
         import boto3
         from botocore.config import Config
 
-        _s3_client = boto3.client(
-            "s3",
-            region_name=settings.aws_region,
-            aws_access_key_id=settings.aws_access_key_id,
-            aws_secret_access_key=settings.aws_secret_access_key,
-            config=Config(signature_version="s3v4", retries={"max_attempts": 3}),
-        )
+        kwargs = {
+            "region_name": settings.aws_region,
+            "aws_access_key_id": settings.aws_access_key_id,
+            "aws_secret_access_key": settings.aws_secret_access_key,
+            "config": Config(signature_version="s3v4", retries={"max_attempts": 3}),
+        }
+        # Any S3-compatible provider (Cloudflare R2, Supabase, Backblaze,
+        # MinIO) works by pointing the same client at its endpoint.
+        if settings.s3_endpoint_url:
+            kwargs["endpoint_url"] = settings.s3_endpoint_url
+
+        _s3_client = boto3.client("s3", **kwargs)
         return _s3_client
     except Exception as exc:  # pragma: no cover - depends on AWS availability
         logger.warning("S3 client unavailable (%s); falling back to database storage", exc)
@@ -73,7 +78,18 @@ def _client():
 
 
 def backend_name() -> str:
-    return "s3" if _client() is not None else "database-fallback"
+    if _client() is None:
+        return "database-fallback"
+    if not settings.s3_endpoint_url:
+        return "s3"
+    host = settings.s3_endpoint_url.split("//")[-1].split("/")[0]
+    if "r2.cloudflarestorage.com" in host:
+        return "cloudflare-r2"
+    if "supabase" in host:
+        return "supabase-storage"
+    if "backblazeb2.com" in host:
+        return "backblaze-b2"
+    return f"s3-compatible ({host})"
 
 
 def extension_for(content_type: str | None, filename: str | None) -> str:
@@ -125,14 +141,19 @@ def put_object(
     client = _client()
     if client is not None:
         try:
+            extra = {}
+            if settings.is_aws_s3:
+                # AWS-only options. R2 and friends reject them: R2 buckets are
+                # private by default and always encrypted at rest.
+                extra["ACL"] = "private"
+                extra["ServerSideEncryption"] = "AES256"
+
             client.put_object(
                 Bucket=settings.s3_bucket,
                 Key=object_key,
                 Body=data,
                 ContentType=content_type,
-                # Objects stay private; access is granted via presigned URLs.
-                ACL="private",
-                ServerSideEncryption="AES256",
+                **extra,
             )
             return object_key
         except Exception as exc:  # pragma: no cover - network dependent

@@ -22,7 +22,7 @@ prototype. Every number on every screen is computed from the database.
 5. [Repository layout](#5-repository-layout)
 6. [Local development](#6-local-development)
 7. [Database setup (Neon + PostGIS)](#7-database-setup-neon--postgis)
-8. [Amazon S3 configuration](#8-amazon-s3-configuration)
+8. [Image storage](#8-image-storage)
 9. [Authentication](#9-authentication)
 10. [API documentation](#10-api-documentation)
 11. [CSV import format](#11-csv-import-format)
@@ -92,8 +92,28 @@ frontend on Vercel, the API on Render, with Vercel proxying `/api/*` to Render.
                                        │
                             Authority verifies → Resolved
                                        │
-                            Citizen notified
+                     ┌─────────────────┴─────────────────┐
+                     ▼                                   ▼
+          Citizen notified            That place becomes a VERIFIED
+                                      accessible facility — green on
+                                      the map instead of a red issue
 ```
+
+### The map follows the workflow
+
+A report is not just a ticket, it is a statement about a place, so both ends of
+the workflow move the accessibility map:
+
+| Event | Effect on the map |
+| --- | --- |
+| Citizen submits a report | Red issue marker appears. Known facilities are untouched — an unreviewed report does not change the record. |
+| Authority marks it **Valid** | The facility at that spot turns **red (Blocked)**. Citizens stop being pointed at a ramp that does not work. |
+| Maintenance completes the repair | Still red. Nothing changes until a human verifies it. |
+| Authority **verifies** the repair | The facility turns **green (Verified)**, and the issue marker disappears. If no facility existed there — a ramp that was built where there were only stairs — one is created. |
+
+Matching is spatial: a facility of the same kind within 40 m of the report is
+treated as the same place, so repeated reports about one ramp update a single
+facility instead of littering the map with duplicates.
 
 ## 3. MVP scope
 
@@ -102,9 +122,10 @@ frontend on Vercel, the API on Render, with Vercel proxying `/api/*` to Render.
 - Citizen: signup/login, current location, accessibility map, nearby search, facility
   categories and details, issue reporting with image evidence, severity, automatic
   timestamp, My Reports, report status, notifications, profile.
-- Authority: dashboard overview, CSV report upload, reports list, search and filters,
-  report details, manual validation, priority recommendation and confirmation,
-  maintenance assignment, resolution verification, map and analytics.
+- Authority: dashboard overview, optional CSV import for reports gathered outside the
+  app, reports list, search and filters, report details, manual validation, priority
+  recommendation and confirmation, maintenance assignment, resolution verification,
+  map and analytics.
 - Maintenance: separate login, assigned tasks, task details, status updates, notes,
   resolution image upload, completion submission.
 
@@ -279,18 +300,25 @@ If PostGIS is unavailable, the identical API is served by an equivalent great-ci
 expression in SQL with a bounding-box pre-filter, so the app degrades rather than
 breaking. `GET /api/health` always tells you which path is active.
 
-## 8. Amazon S3 configuration
+## 8. Image storage
 
-Report evidence and resolution photos are stored in S3. **Binary images never go into
-PostgreSQL** — the database holds only the object key.
+Report evidence and resolution photos live in object storage. **Binary images never go
+into PostgreSQL** — the database holds only the object key.
+
+The storage layer speaks the S3 API, so any S3-compatible provider works with the same
+variables. **Cloudflare R2 is the simplest and cheapest choice** — 10 GB free, no egress
+fees, and an API token instead of an IAM policy:
 
 ```
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
-AWS_REGION=ap-south-1
+AWS_REGION=auto
 S3_BUCKET=routesathi-media
-S3_PRESIGN_EXPIRY=900
+S3_ENDPOINT_URL=https://<account-id>.r2.cloudflarestorage.com
 ```
+
+Leave `S3_ENDPOINT_URL` empty to use Amazon S3 instead; Supabase Storage, Backblaze B2
+and MinIO also work by pointing it at their endpoint.
 
 Object key layout:
 
@@ -299,15 +327,17 @@ reports/2026/08/RS-1001-a1b2c3d4.jpg
 resolutions/2026/08/RS-1001-fixed-e5f6a7b8.jpg
 ```
 
-Objects are written private with `AES256` server-side encryption. Reads are served
-through short-lived **presigned URLs**, so the bucket needs no public access:
+Buckets stay private. Reads are served through short-lived **presigned URLs** minted by
+the API only after it has checked the caller's role and ownership:
 
 ```
 PostgreSQL → FastAPI → object key → presigned URL → browser
 ```
 
-Keep *Block all public access* switched on. Details, including the minimal IAM policy
-and the development fallback, are in [`docs/S3.md`](docs/S3.md).
+`GET /api/health` names the provider it detected. With no credentials configured the API
+falls back to storing images in the database so a fresh clone still works end to end —
+development only. Full setup, including the five-step R2 walkthrough:
+[`docs/STORAGE.md`](docs/STORAGE.md).
 
 ## 9. Authentication
 
