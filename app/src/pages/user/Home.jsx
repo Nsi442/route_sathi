@@ -190,7 +190,7 @@ export default function Home() {
         </Link>
       </div>
 
-      <div className="stack">
+      <div className="stack is-responsive-grid">
         {loading && <Spinner label="Loading updates" />}
         {!loading && !summary?.latest_updates?.length && (
           <div className="card card-pad muted small center">

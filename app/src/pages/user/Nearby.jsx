@@ -160,7 +160,7 @@ export default function Nearby() {
           <p className="small muted mb-2">
             {visible.length} facilit{visible.length === 1 ? 'y' : 'ies'} · nearest first
           </p>
-          <div className="stack">
+          <div className="stack is-responsive-grid">
             {visible.map((facility) => (
               <Link
                 key={facility.facility_id}

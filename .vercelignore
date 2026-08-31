@@ -1,0 +1,13 @@
+# The API runs on Render, not as a Vercel function. Excluding the Python
+# sources keeps Vercel from building a serverless function for api/index.py
+# and keeps the frontend deployment small and fast.
+api/
+backend/
+scripts/
+tests/
+data/
+docs/
+requirements.txt
+requirements-dev.txt
+render.yaml
+.venv/

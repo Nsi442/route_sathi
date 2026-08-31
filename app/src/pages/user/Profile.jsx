@@ -66,7 +66,7 @@ export default function Profile() {
   }
 
   return (
-    <UserShell title="Profile" plainHeader>
+    <UserShell title="Profile" plainHeader narrow>
       <div className="card card-pad mb-3">
         <div className="row">
           <span

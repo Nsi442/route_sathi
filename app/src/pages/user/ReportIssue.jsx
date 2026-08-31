@@ -151,7 +151,7 @@ export default function ReportIssue() {
   // --- Step 1: issue type ---------------------------------------------------
   if (step === 1) {
     return (
-      <UserShell title="Report an Issue" plainHeader>
+      <UserShell title="Report an Issue" plainHeader narrow>
         <p className="small muted mb-3">
           What kind of accessibility barrier did you find?
         </p>
@@ -186,7 +186,7 @@ export default function ReportIssue() {
 
   // --- Step 2: details ------------------------------------------------------
   return (
-    <UserShell title="Report Details" plainHeader>
+    <UserShell title="Report Details" plainHeader narrow>
       <form onSubmit={handleSubmit} noValidate>
         <div className="card card-pad mb-3">
           <div className="row-between">

@@ -19,6 +19,7 @@ export default function UserShell({
   back = false,
   plainHeader = false,
   flush = false,
+  narrow = false,
   action,
   hideTabs = false,
 }) {
@@ -75,7 +76,10 @@ export default function UserShell({
           )}
         </header>
 
-        <main id="main" className={`app-main ${flush ? 'is-flush' : ''}`.trim()}>
+        <main
+          id="main"
+          className={`app-main ${flush ? 'is-flush' : ''} ${narrow ? 'is-narrow' : ''}`.trim()}
+        >
           {children}
         </main>
 

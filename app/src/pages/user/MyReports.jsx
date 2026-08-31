@@ -107,7 +107,7 @@ export default function MyReports() {
         />
       ) : (
         <>
-          <div className="stack">
+          <div className="stack is-responsive-grid">
             {items.map((report) => (
               <Link
                 key={report.report_id}

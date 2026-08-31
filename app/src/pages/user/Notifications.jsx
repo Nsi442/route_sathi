@@ -100,7 +100,7 @@ export default function Notifications() {
           description="Updates about your reports will show up here."
         />
       ) : (
-        <div className="stack">
+        <div className="stack is-responsive-grid">
           {items.map((notification) => (
             <button
               key={notification.notification_id}

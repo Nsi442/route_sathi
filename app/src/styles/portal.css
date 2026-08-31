@@ -801,3 +801,180 @@
   .console-content { padding: 16px 14px 32px; }
   .console-topbar { padding: 0 14px; }
 }
+
+/* ==========================================================================
+   Responsive citizen portal
+   The phone layout above is the base. From tablet upward the frame widens and
+   the content reflows to use the space; on desktop the bottom tab bar becomes
+   a horizontal nav directly under the header, because a thumb-reach bar
+   pinned to the bottom of a large screen is neither reachable nor readable.
+   ========================================================================== */
+
+/* --- Tablet ------------------------------------------------------------- */
+@media (min-width: 600px) {
+  .app-frame {
+    max-width: 680px;
+  }
+
+  .app-main {
+    padding: 20px 22px calc(var(--tabbar-height) + 28px);
+  }
+
+  .home-hero {
+    margin: -20px -22px 20px;
+    padding: 26px 24px 30px;
+    border-radius: 0 0 24px 24px;
+  }
+
+  .home-hero .greeting {
+    font-size: 1.5rem;
+  }
+
+  .quick-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .quick-tile {
+    padding: 17px;
+  }
+
+  .map-shell.is-full {
+    height: calc(100vh - var(--tabbar-height) - 130px);
+  }
+}
+
+/* --- Desktop ------------------------------------------------------------ */
+@media (min-width: 1024px) {
+  .app-shell {
+    padding: 0;
+    align-items: flex-start;
+  }
+
+  .app-frame {
+    max-width: 1120px;
+    box-shadow: none;
+    background: var(--canvas);
+  }
+
+  /* Header, then nav, then content: the tab bar is last in the DOM so it
+     reads correctly on a phone, and flex order lifts it into place here. */
+  .app-topbar { order: 0; }
+  .tabbar     { order: 1; }
+  .app-main   { order: 2; }
+
+  .app-topbar {
+    padding: 16px 28px;
+  }
+
+  .app-topbar h1 {
+    font-size: 1.22rem;
+  }
+
+  .tabbar {
+    position: sticky;
+    top: 0;
+    width: 100%;
+    max-width: none;
+    height: auto;
+    padding: 0 20px;
+    border-top: none;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    gap: 4px;
+    z-index: 45;
+  }
+
+  .tabbar a {
+    flex-direction: row;
+    gap: 8px;
+    padding: 14px 18px;
+    font-size: 0.88rem;
+    border-bottom: 2.5px solid transparent;
+  }
+
+  .tabbar a.is-active {
+    border-bottom-color: var(--teal-700);
+    background: var(--teal-50);
+  }
+
+  .app-main {
+    padding: 24px 28px 48px;
+  }
+
+  .app-main.is-flush {
+    padding: 0;
+  }
+
+  .home-hero {
+    margin: -24px -28px 22px;
+    padding: 30px 28px 34px;
+    border-radius: 0 0 26px 26px;
+  }
+
+  .home-hero .greeting {
+    font-size: 1.75rem;
+  }
+
+  .home-hero form {
+    max-width: 560px;
+  }
+
+  /* Two-column reading layout for the long lists. */
+  .stack.is-responsive-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    align-items: start;
+  }
+
+  .around-grid {
+    gap: 14px;
+  }
+
+  .around-tile {
+    padding: 18px 10px;
+  }
+
+  .around-tile .count {
+    font-size: 1.5rem;
+  }
+
+  .section-title h2 {
+    font-size: 1.1rem;
+  }
+
+  .map-shell.is-full {
+    height: calc(100vh - 190px);
+  }
+
+  .map-height-sm { height: 320px; }
+  .map-height-md { height: 420px; }
+
+  /* Detail screens read better constrained rather than full bleed. */
+  .app-main .detail-list,
+  .app-main form,
+  .app-main .timeline {
+    max-width: 100%;
+  }
+}
+
+/* --- Wide desktop ------------------------------------------------------- */
+@media (min-width: 1440px) {
+  .app-frame {
+    max-width: 1240px;
+  }
+
+  .stack.is-responsive-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Form and detail screens keep a comfortable measure on wide screens rather
+   than stretching a single column of fields across the full frame. */
+@media (min-width: 1024px) {
+  .app-main.is-narrow {
+    max-width: 780px;
+    margin-inline: auto;
+    width: 100%;
+  }
+}

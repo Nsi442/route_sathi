@@ -41,7 +41,7 @@ export default function FacilityDetail() {
       : null;
 
   return (
-    <UserShell title="Facility Details" back plainHeader>
+    <UserShell title="Facility Details" back plainHeader narrow>
       {loading && <Spinner label="Loading facility" />}
       {error && <Alert tone="error">{error}</Alert>}
 

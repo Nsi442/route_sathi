@@ -12,7 +12,7 @@ export default function ReportSubmitted() {
   if (!report) return <Navigate to="/my-reports" replace />;
 
   return (
-    <UserShell title="Report Submitted" plainHeader hideTabs>
+    <UserShell title="Report Submitted" plainHeader hideTabs narrow>
       <div className="card card-pad center mb-3">
         <span
           className="empty-icon"

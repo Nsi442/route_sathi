@@ -64,7 +64,7 @@ export default function ReportStatus() {
   const currentIndex = report ? STAGES.findIndex((stage) => stage.key === report.status) : -1;
 
   return (
-    <UserShell title="Report Status" back plainHeader>
+    <UserShell title="Report Status" back plainHeader narrow>
       {loading && <Spinner label="Loading report" />}
       {error && <Alert tone="error">{error}</Alert>}
 

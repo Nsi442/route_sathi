@@ -1,156 +1,183 @@
-# Vercel deployment
-
-One GitHub repository, one Vercel project. The React SPA and the FastAPI API are served
-from the same domain, so the frontend only ever uses relative `/api/...` paths.
+# Deployment — Render (API) + Vercel (frontend)
 
 ```
 GitHub Repository
-        ↓
-      Vercel
         │
-        ├── React Frontend  (static build in dist/)
-        │
-        └── FastAPI API     (api/index.py, Python serverless function)
-                 │
-        ┌────────┴────────┐
-        ▼                 ▼
-   Neon PostgreSQL     Amazon S3
-      + PostGIS          Images
+        ├──────────────▶ Vercel ──── React frontend (static build in dist/)
+        │                   │
+        │                   │  /api/*  proxied server-side
+        │                   ▼
+        └──────────────▶ Render ──── FastAPI + XGBoost (uvicorn)
+                            │
+                   ┌────────┴────────┐
+                   ▼                 ▼
+              Neon PostgreSQL     Amazon S3
+                 + PostGIS          Images
 ```
 
-## How the routing works
+## Why the API is not a Vercel function
 
-`vercel.json`:
+The ML stack does not fit in a serverless function:
+
+| Package | Installed size |
+| --- | --- |
+| NVIDIA CUDA libraries (pulled in by xgboost on Linux) | 454 MB |
+| xgboost | 228 MB |
+| scipy | 143 MB |
+| numpy | 73 MB |
+| scikit-learn | 50 MB |
+| **ML stack total** | **~948 MB** |
+| Everything else the API needs | 98 MB |
+
+A Vercel Python function is capped at roughly 250 MB unzipped, so the ML stack
+cannot ship there. Render has no such cap, which is why the API runs there and
+keeps real XGBoost inference in production.
+
+If you would rather have a single Vercel project, remove `xgboost`,
+`scikit-learn` and `numpy` from `requirements.txt` and deploy the API as a
+Vercel function: the code falls back to the deterministic rule engine
+automatically, with no code change. Measured over 3000 generated reports the
+rule engine picks the identical priority band 89.7% of the time and is never
+more than one band away, because it is the same scoring function that labelled
+the model's training data. See [ML.md](ML.md).
+
+## Order of operations
+
+Render first (you need its URL for Vercel), then Vercel.
+
+---
+
+## 1. Neon — the database
+
+1. Create a project at [neon.com](https://neon.com).
+2. Copy the **pooled** connection string (it has `-pooler` in the host).
+3. Keep it handy; it goes into Render as `DATABASE_URL`.
+
+PostGIS is installed automatically on first boot — the app runs
+`CREATE EXTENSION IF NOT EXISTS postgis` and sets up the geography columns,
+GiST indexes and triggers. Nothing to do by hand.
+
+## 2. Amazon S3 — evidence images
+
+Follow [S3.md](S3.md) to create a private bucket and an IAM user limited to
+`PutObject` / `GetObject` / `DeleteObject` on that bucket. Note the access key,
+secret key, region and bucket name.
+
+Skipping this is fine for a first deploy — the API falls back to storing images
+in the database and tells you so at `/api/health`.
+
+## 3. Render — the API
+
+**Render Dashboard → New → Blueprint → select this repository.** Render reads
+[`render.yaml`](../render.yaml), which already sets the build command, start
+command, health check path and Python version.
+
+Then set the secret variables it prompts for (they are marked `sync: false` in
+the blueprint precisely so they are never stored in the repository):
+
+| Variable | Value |
+| --- | --- |
+| `DATABASE_URL` | Neon pooled connection string |
+| `JWT_SECRET` | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `AWS_ACCESS_KEY_ID` | From step 2 |
+| `AWS_SECRET_ACCESS_KEY` | From step 2 |
+| `AWS_REGION` | e.g. `ap-south-1` |
+| `S3_BUCKET` | Your bucket name |
+| `CORS_ORIGINS` | Your Vercel domain, e.g. `https://routesathi.vercel.app` |
+
+Deploy, then check:
+
+```bash
+curl https://YOUR-SERVICE.onrender.com/api/health
+```
+
+Expect `"database": "postgresql"`, `"spatial_backend": "postgis"`,
+`"object_storage": "s3"` and `"ml_backend": "xgboost"`. Anything else means a
+variable is missing or wrong.
+
+**Copy the service hostname** — you need it in the next step.
+
+### Free tier caveats
+
+- **The service sleeps after 15 minutes of inactivity.** The next request wakes
+  it and takes 30–60 seconds. Fine for coursework; upgrade to the paid instance
+  (about $7/month) before demoing live to an audience.
+- **512 MB RAM.** The ML stack uses roughly 200–300 MB resident once loaded, so
+  it fits, but not with much room. If the service is OOM-killed, set
+  `ML_ENABLED=0` — the API then serves priority from the rule engine and the
+  memory footprint drops sharply.
+- The first priority prediction after a cold start trains and caches the model,
+  so it takes a second or two longer than later ones.
+
+## 4. Vercel — the frontend
+
+1. **Edit [`vercel.json`](../vercel.json)** and replace
+   `routesathi-api.onrender.com` with your Render hostname, in both rewrites.
+   Commit and push. This is the only place the API hostname appears.
+2. Import the repository at [vercel.com/new](https://vercel.com/new). The Vite
+   preset is detected; `vercel.json` supplies the rest.
+3. Deploy.
+
+**No environment variables are needed on Vercel.** The frontend has no secrets
+in it — it only ever calls same-origin `/api/...` paths.
+
+### How the proxy works
 
 ```json
-{
-  "framework": "vite",
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "functions": { "api/index.py": { "memory": 1024, "maxDuration": 30 } },
-  "rewrites": [
-    { "source": "/api", "destination": "/api/index" },
-    { "source": "/api/(.*)", "destination": "/api/index" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ]
-}
+{ "source": "/api/:path*", "destination": "https://YOUR-SERVICE.onrender.com/api/:path*" }
 ```
 
-- `/api/*` → the Python function, which exposes the single FastAPI `app`.
-- Everything else → `index.html`, so client-side routes (`/`, `/map`, `/reports`,
-  `/authority`, `/maintenance`) survive a hard refresh. The negative lookahead keeps
-  the fallback from swallowing API paths, and Vercel checks the filesystem before
-  applying rewrites, so real build assets are still served directly.
+Vercel forwards `/api/*` to Render server-side, so:
 
-The Python runtime is inferred from `requirements.txt` and the `.py` file in `api/`;
-pinning a runtime version here is unnecessary and a stale pin breaks the build.
+- the browser only ever sees one origin, and never makes a cross-origin request
+- there is no CORS preflight on any API call
+- no API hostname is compiled into the JavaScript bundle
+- the frontend code is byte-identical between local development and production
 
-`api/index.py` is deliberately the **only** Python file in `api/`. Vercel treats every
-`.py` file there as a separate function; keeping one entrypoint that imports from
-`backend/` gives one function, one cold start and one connection pool.
+[`.vercelignore`](../.vercelignore) excludes `api/`, `backend/` and
+`requirements.txt` so Vercel does not try to build a Python function.
 
-```python
-# api/index.py
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
+## 5. Seed the first accounts
 
-from backend.main import app
+Authority and maintenance accounts cannot be self-registered, so seed them once
+against the live database from your own machine:
 
-handler = app
+```bash
+DATABASE_URL='postgresql+psycopg://...pooler...' python scripts/seed_data.py
 ```
 
-## Steps
+**Change the seeded passwords immediately afterwards** — they are published in
+this repository.
 
-1. Push the repository to GitHub.
-2. Import it at [vercel.com/new](https://vercel.com/new). The Vite framework preset is
-   detected; `vercel.json` supplies the rest.
-3. Add environment variables (**Settings → Environment Variables**), for Production and
-   Preview:
+## 6. Verify end to end
 
-   | Variable | Required | Notes |
-   | --- | --- | --- |
-   | `DATABASE_URL` | yes | Neon **pooled** connection string |
-   | `JWT_SECRET` | yes | Long random string; see below |
-   | `AWS_ACCESS_KEY_ID` | for images | |
-   | `AWS_SECRET_ACCESS_KEY` | for images | |
-   | `AWS_REGION` | for images | e.g. `ap-south-1` |
-   | `S3_BUCKET` | for images | |
-   | `S3_PRESIGN_EXPIRY` | no | seconds, default 900 |
-   | `APP_ENV` | no | `production` |
-   | `ML_ENABLED` | no | `0` disables the model and uses the rule engine |
-   | `ML_MODEL_DIR` | no | must be under `/tmp` — that is the only writable path |
-   | `CORS_ORIGINS` | no | Only needed if a different origin calls the API |
-
-   ```bash
-   python -c "import secrets; print(secrets.token_urlsafe(48))"
-   ```
-
-4. Deploy. On the first request the API bootstraps the schema and PostGIS objects.
-5. Verify:
-
-   ```bash
-   curl https://your-app.vercel.app/api/health
-   ```
-
-   Confirm `"database": "postgresql"`, `"spatial_backend": "postgis"` and
-   `"object_storage": "s3"`. Anything else means an environment variable is missing.
-
-6. Seed an initial authority account. Run the seeder locally against the same
-   `DATABASE_URL`:
-
-   ```bash
-   DATABASE_URL='postgresql+psycopg://...' python scripts/seed_data.py
-   ```
-
-   Change the seeded passwords before going live.
-
-## Serverless constraints the code respects
-
-The FastAPI app is built for a runtime that freezes between invocations:
-
-- **No background workers or schedulers.** Every unit of work completes inside a
-  request.
-- **No local persistent filesystem.** Uploads are read into memory and forwarded to S3
-  within the request; only `/tmp` is writable, and it is used solely as a model cache.
-- **No long-lived connections.** The engine keeps a tiny recycled pool
-  (`pool_size=1`, `pool_recycle=280`, `pool_pre_ping=True`) and Neon's pooled endpoint
-  absorbs the connection churn.
-- **Idempotent, cached bootstrap.** Schema setup is guarded by a module-level flag, so a
-  warm container pays for it once.
-- **Model caching.** The trained booster is written to `ML_MODEL_DIR` and reloaded on
-  warm starts; if the path is unwritable the model is retrained in memory rather than
-  failing.
-
-## Cold starts
-
-The first request after an idle period pays for the Python runtime, the imports
-(XGBoost and pandas are not small) and, once, model training. Subsequent requests are
-warm. If cold starts matter more than model quality, set `ML_ENABLED=0` — the rule
-engine is instant and needs no numeric stack at request time.
+1. Open your Vercel URL, sign in as the citizen account.
+2. Allow location access; the home screen counts should be non-zero.
+3. Submit a report with a photo.
+4. Sign in as the authority account, validate it, request a priority
+   recommendation (confirms XGBoost is live), and assign it.
+5. Sign in as the maintenance account, upload a resolution photo, submit.
+6. Back as the authority, verify it. The report should close as `Resolved`.
 
 ## Troubleshooting
 
-| Symptom | Likely cause |
+| Symptom | Cause |
 | --- | --- |
-| `/api/health` shows `"database": "unavailable"` | `DATABASE_URL` missing or wrong; check `sslmode=require` |
+| Frontend loads, every API call 404s | `vercel.json` still points at the placeholder hostname |
+| First request takes ~45 s | Render free tier waking from sleep. Expected. |
+| `"database": "unavailable"` | `DATABASE_URL` wrong, or missing `sslmode=require` |
 | `"spatial_backend": "haversine"` on Neon | PostGIS could not be created; check the role's privileges. The app still works. |
-| `"object_storage": "database-fallback"` | One of `S3_BUCKET`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` is missing |
+| `"object_storage": "database-fallback"` | An S3 variable is missing |
+| `"ml_backend": "rules"` | `ML_ENABLED=0`, or xgboost failed to import — check the Render build log |
 | 401 on every request after a redeploy | `JWT_SECRET` changed, invalidating issued tokens. Sign in again. |
-| Function timeout on the first CSV import | Cold start plus a large file; raise `maxDuration` or split the file |
-| SPA routes 404 on refresh | `outputDirectory` is not `dist`, or the framework preset was overridden |
+| Render build times out | The ML wheels are large; the first build takes several minutes |
 
-## Local production preview
-
-```bash
-npm run build
-npm run api          # terminal 1
-npx vite preview     # terminal 2 — serves dist/
-```
-
-Or use the Vercel CLI to reproduce the real routing:
+## Local development is unchanged
 
 ```bash
-npm i -g vercel
-vercel dev
+npm run api    # uvicorn on :8000
+npm run dev    # Vite on :5173, proxies /api to :8000
 ```
+
+The Vite dev proxy plays the same role locally that the Vercel rewrite plays in
+production, so the frontend uses the same relative paths in both.

@@ -4,7 +4,8 @@
 
 One React single-page application serves three role-based portals. One FastAPI
 application serves all of them over same-origin `/api/...` paths. One GitHub repository
-deploys to one Vercel project.
+deploys the frontend to Vercel and the API to Render, with Vercel proxying `/api/*` to
+Render server-side so the browser still sees a single origin.
 
 ```
                             ROUTESATHI
@@ -51,11 +52,18 @@ know about transaction scope.
 
 ## Design decisions worth explaining
 
-### One serverless function, not eight
+### One ASGI entrypoint, not eight files
 
-Vercel treats every `.py` file in `api/` as its own function. Eight files would mean
-eight cold starts, eight connection pools and eight copies of XGBoost. A single
-`api/index.py` that imports routers from `backend/` gives one function with one pool.
+`api/` holds a single `index.py` that imports the routers from `backend/`, rather than
+one file per resource. On a serverless host every `.py` file in `api/` becomes its own
+function — eight files would mean eight cold starts, eight connection pools and eight
+copies of the ML stack. The single entrypoint also runs unchanged under
+`uvicorn api.index:app`, which is exactly how it runs on Render today.
+
+The API ended up on Render rather than as a Vercel function because the XGBoost stack
+installs at roughly 948 MB, well past the ~250 MB serverless limit. Dropping the ML
+packages brings it to 98 MB and it deploys to Vercel unchanged, falling back to the
+rule engine — see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ### Latitude/longitude authoritative, geography derived
 

@@ -27,7 +27,7 @@ prototype. Every number on every screen is computed from the database.
 10. [API documentation](#10-api-documentation)
 11. [CSV import format](#11-csv-import-format)
 12. [Machine learning: priority recommendation](#12-machine-learning-priority-recommendation)
-13. [Vercel deployment](#13-vercel-deployment)
+13. [Deployment](#13-deployment)
 14. [Git workflow](#14-git-workflow)
 15. [Testing](#15-testing)
 
@@ -71,8 +71,8 @@ RouteSathi closes that loop:
 ```
 
 All three portals are served from **one React SPA** and talk to **one FastAPI
-application** over same-origin `/api/...` paths. One GitHub repository, one Vercel
-project.
+application** over same-origin `/api/...` paths, from one GitHub repository: the
+frontend on Vercel, the API on Render, with Vercel proxying `/api/*` to Render.
 
 ### Report lifecycle
 
@@ -466,37 +466,33 @@ produced it, and so does `GET /api/health`.
 
 Set `ML_ENABLED=0` to use the rule engine exclusively. See [`docs/ML.md`](docs/ML.md).
 
-## 13. Vercel deployment
+## 13. Deployment
 
-One GitHub repository, one Vercel project, serving the React SPA and the FastAPI API
-from the same domain.
+The frontend deploys to **Vercel**; the API deploys to **Render**, because the
+XGBoost stack (~948 MB installed) exceeds the size limit for a Vercel Python
+function. Vercel proxies `/api/*` to Render server-side, so the browser still
+sees a single origin, there is no CORS, and no API hostname is compiled into the
+frontend bundle.
 
-1. Import the repository at [vercel.com/new](https://vercel.com/new). The framework is
-   detected as Vite; `vercel.json` already pins the build command, output directory and
-   Python function.
-2. Add environment variables under **Settings → Environment Variables**:
+```
+GitHub ──┬──▶ Vercel ── React frontend ──/api/*──┐
+         │                                        ▼
+         └──▶ Render ── FastAPI + XGBoost ──▶ Neon PostgreSQL + PostGIS
+                                           └──▶ Amazon S3
+```
 
-   | Variable | Required | Notes |
-   | --- | --- | --- |
-   | `DATABASE_URL` | yes | Neon **pooled** connection string |
-   | `JWT_SECRET` | yes | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
-   | `AWS_ACCESS_KEY_ID` | for images | |
-   | `AWS_SECRET_ACCESS_KEY` | for images | |
-   | `AWS_REGION` | for images | e.g. `ap-south-1` |
-   | `S3_BUCKET` | for images | |
-   | `APP_ENV` | no | `production` |
-   | `ML_MODEL_DIR` | no | must be under `/tmp` on Vercel |
+Order: Neon → S3 → Render (blueprint in [`render.yaml`](render.yaml)) → put the
+Render hostname into [`vercel.json`](vercel.json) → Vercel.
 
-3. Deploy. Vercel builds the SPA to `dist/` and deploys `api/index.py` as a Python
-   serverless function; the rewrites in `vercel.json` send `/api/*` to that function and
-   everything else to the SPA.
+**Credentials go in the Render dashboard only** — never in the repository. The
+blueprint marks every secret `sync: false` so Render prompts for it.
 
-Routes served: `/`, `/map`, `/reports`, `/authority`, `/maintenance`, and the API under
-`/api/*`.
+Full step-by-step guide, free-tier caveats and troubleshooting:
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
-The FastAPI app is written for serverless execution — no background workers, no local
-persistent filesystem, no long-running processes, and uploads are processed entirely
-within the request. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+To run everything on Vercel instead, drop `xgboost`, `scikit-learn` and `numpy`
+from `requirements.txt`; the API falls back to the rule engine with no code
+change (89.7% identical priority bands, never more than one band apart).
 
 ## 14. Git workflow
 

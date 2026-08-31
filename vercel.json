@@ -3,15 +3,28 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "functions": {
-    "api/index.py": {
-      "memory": 1024,
-      "maxDuration": 30
-    }
-  },
+
+  "_comment": [
+    "The frontend always calls same-origin /api/... paths. These rewrites proxy",
+    "them to the FastAPI service on Render, so no API hostname is compiled into",
+    "the bundle and the browser never makes a cross-origin request (no CORS).",
+    "",
+    "BEFORE DEPLOYING: replace routesathi-api.onrender.com below with the host",
+    "Render gives your service. It is the only value you need to change here."
+  ],
+
   "rewrites": [
-    { "source": "/api", "destination": "/api/index" },
-    { "source": "/api/(.*)", "destination": "/api/index" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/api",
+      "destination": "https://routesathi-api.onrender.com/api"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://routesathi-api.onrender.com/api/:path*"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ]
 }
