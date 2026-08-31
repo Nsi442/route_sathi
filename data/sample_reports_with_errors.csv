@@ -1,0 +1,9 @@
+report_id,user_id,issue_type,location,latitude,longitude,severity,description,image_url,timestamp,validation_status,status,source
+RS-3001,U1060,Blocked Ramp,"Behala, Kolkata",22.4990,88.3140,High,"Ramp blocked by construction material.","https://example.com/RS-3001.jpg",2026-08-21T10:00:00+05:30,Needs Review,Submitted,Community
+RS-3002,U1061,Waterlogging,"Tollygunge, Kolkata",122.5000,88.3400,High,"Latitude is out of range in this row.",,2026-08-21T11:00:00+05:30,Needs Review,Submitted,Community
+RS-3003,U1062,Damaged Footpath,"Dumdum, Kolkata",22.6200,88.4200,Critical,"Severity value is not one of Low/Medium/High.",,2026-08-21T12:00:00+05:30,Needs Review,Submitted,Community
+RS-3001,U1063,Blocked Crossing,"Behala, Kolkata",22.4991,88.3141,Medium,"Duplicate report id within the same file.",,2026-08-21T13:00:00+05:30,Needs Review,Submitted,Community
+RS-3005,U1064,Teleportation Pad,"Rajarhat, Kolkata",22.6100,88.4500,Low,"Unknown issue type.",,2026-08-21T14:00:00+05:30,Needs Review,Submitted,Community
+RS-3006,U1065,Ramp Blocked,"Rajarhat, Kolkata",22.6101,88.4501,Medium,"Timestamp is not parseable.",,not-a-timestamp,Needs Review,Submitted,Community
+RS-3007,U1066,Ramp Blocked,"Rajarhat, Kolkata",22.6102,88.4502,Medium,"Validation status is not recognised.",,2026-08-21T15:00:00+05:30,Maybe,Submitted,Community
+RS-3008,U1067,Footpath Damaged,"Rajarhat, Kolkata",22.6103,88.4503,Low,"This row is valid and should import.","https://example.com/RS-3008.jpg",2026-08-21T16:00:00+05:30,Needs Review,Submitted,Community
