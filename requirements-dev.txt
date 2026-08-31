@@ -1,0 +1,5 @@
+# Development and test dependencies.
+# Kept out of requirements.txt so the Vercel serverless function stays lean.
+-r requirements.txt
+pytest==8.4.2
+httpx==0.28.1
