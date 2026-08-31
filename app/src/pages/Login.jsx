@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { errorMessage } from '../api/client';
 import { Alert, Field } from '../components/Ui';
 import { IconLogo } from '../components/Icons';
@@ -15,8 +15,14 @@ export default function Login() {
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [params] = useSearchParams();
 
-  const [portal, setPortal] = useState('USER');
+  // The landing page passes the portal the visitor picked. The backend still
+  // checks the account really holds that role, so this is only a convenience.
+  const requested = (params.get('role') || '').toUpperCase();
+  const [portal, setPortal] = useState(
+    PORTALS.some((item) => item.key === requested) ? requested : 'USER',
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -49,6 +55,9 @@ export default function Login() {
     <div className="auth-shell">
       <div className="auth-card">
         <div className="auth-brand">
+          <Link to="/" className="tiny" style={{ alignSelf: 'flex-start' }}>
+            &larr; All portals
+          </Link>
           <span className="logo-mark">
             <IconLogo width={30} height={30} />
           </span>

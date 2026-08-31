@@ -1,64 +1,99 @@
 import { Link } from 'react-router-dom';
-import { IconLogo, IconMap, IconReport, IconShield } from '../components/Icons';
+import {
+  IconChevronRight,
+  IconLogo,
+  IconShield,
+  IconUser,
+  IconWrench,
+} from '../components/Icons';
 
-/** First-run screen introducing the product and the three portals. */
+/**
+ * Landing page.
+ *
+ * Three portals share one application, so the first decision is which one you
+ * belong to. Each card routes to the sign-in form with that role preselected,
+ * and the backend refuses a token if the account does not actually hold it —
+ * picking a card here is a convenience, never a way in.
+ */
+const PORTALS = [
+  {
+    key: 'USER',
+    className: 'is-user',
+    icon: <IconUser width={24} height={24} />,
+    audience: 'For everyone',
+    title: 'Citizen',
+    description:
+      'Find ramps, step-free entrances, accessible toilets and parking near you. Report a barrier with a photo and follow it until it is fixed.',
+    cta: 'Sign in or create an account',
+    to: '/login?role=USER',
+  },
+  {
+    key: 'AUTHORITY',
+    className: 'is-authority',
+    icon: <IconShield width={24} height={24} />,
+    audience: 'Municipal staff',
+    title: 'Authority',
+    description:
+      'Review and validate incoming reports, confirm a priority, assign a maintenance team and verify the repair before it is closed.',
+    cta: 'Sign in',
+    to: '/login?role=AUTHORITY',
+  },
+  {
+    key: 'MAINTENANCE',
+    className: 'is-maintenance',
+    icon: <IconWrench width={24} height={24} />,
+    audience: 'Field teams',
+    title: 'Maintenance',
+    description:
+      'See the repairs assigned to you or your team, record what you found on site, and submit a photo of the finished work.',
+    cta: 'Sign in',
+    to: '/login?role=MAINTENANCE',
+  },
+];
+
 export default function Welcome() {
   return (
-    <div className="auth-shell">
-      <div className="auth-card">
-        <div className="auth-brand">
+    <div className="landing">
+      <div className="landing-inner">
+        <header className="landing-head">
           <span className="logo-mark">
-            <IconLogo width={30} height={30} />
+            <IconLogo width={34} height={34} />
           </span>
-          <h1 style={{ fontSize: '1.6rem' }}>RouteSathi</h1>
+          <h1>RouteSathi</h1>
           <p className="tagline">Accessible Places. Better Access.</p>
+          <p className="blurb">
+            One platform connecting the people who find accessibility barriers, the
+            authority that reviews them, and the teams that fix them.
+          </p>
+        </header>
+
+        <p className="landing-prompt">Choose your portal</p>
+
+        <div className="role-grid">
+          {PORTALS.map((portal) => (
+            <Link key={portal.key} to={portal.to} className={`role-card ${portal.className}`}>
+              <span className="role-icon">{portal.icon}</span>
+              <span className="role-for">{portal.audience}</span>
+              <h2>{portal.title}</h2>
+              <p className="role-desc">{portal.description}</p>
+              <span className="role-go">
+                {portal.cta}
+                <IconChevronRight width={15} height={15} />
+              </span>
+            </Link>
+          ))}
         </div>
 
-        <div className="stack mb-4">
-          <Feature
-            icon={<IconMap width={18} height={18} />}
-            title="Find accessible places"
-            body="Ramps, step-free entrances, accessible toilets and parking near you."
-          />
-          <Feature
-            icon={<IconReport width={18} height={18} />}
-            title="Report what blocks you"
-            body="Send a photo, a location and a severity. Track the repair to completion."
-          />
-          <Feature
-            icon={<IconShield width={18} height={18} />}
-            title="Verified by the authority"
-            body="Every report is reviewed, prioritised and assigned to a maintenance team."
-          />
-        </div>
-
-        <Link to="/signup" className="btn btn-primary btn-lg btn-block mb-2">
-          Create an account
-        </Link>
-        <Link to="/login" className="btn btn-secondary btn-block">
-          I already have an account
-        </Link>
-
-        <p className="tiny muted center mt-3">
-          Authority and maintenance staff sign in with credentials issued by the
-          municipal administrator.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function Feature({ icon, title, body }) {
-  return (
-    <div className="row" style={{ alignItems: 'flex-start', gap: 12 }}>
-      <span className="choice-icon" style={{ width: 34, height: 34, borderRadius: 10 }}>
-        {icon}
-      </span>
-      <div>
-        <div className="strong" style={{ fontSize: '0.92rem' }}>
-          {title}
-        </div>
-        <div className="small muted">{body}</div>
+        <footer className="landing-foot">
+          <p>
+            New here? <Link to="/signup">Create a citizen account</Link> — it takes a
+            minute.
+          </p>
+          <p style={{ marginTop: 6 }}>
+            Authority and maintenance accounts are issued by the municipal
+            administrator and cannot be self-registered.
+          </p>
+        </footer>
       </div>
     </div>
   );

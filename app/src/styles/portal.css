@@ -978,3 +978,171 @@
     width: 100%;
   }
 }
+
+/* ==========================================================================
+   Landing page — pick a portal before signing in
+   ========================================================================== */
+
+.landing {
+  min-height: 100vh;
+  background: linear-gradient(160deg, var(--teal-800) 0%, var(--navy-900) 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 18px 40px;
+}
+
+.landing-inner {
+  width: 100%;
+  max-width: 1040px;
+}
+
+.landing-head {
+  text-align: center;
+  color: #fff;
+  margin-bottom: 32px;
+}
+
+.landing-head .logo-mark {
+  width: 66px;
+  height: 66px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  display: grid;
+  place-items: center;
+  margin: 0 auto 16px;
+  color: #fff;
+}
+
+.landing-head h1 {
+  color: #fff;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+}
+
+.landing-head .tagline {
+  color: var(--teal-300);
+  font-size: 0.98rem;
+  margin-top: 7px;
+  font-weight: 500;
+}
+
+.landing-head .blurb {
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.89rem;
+  margin-top: 14px;
+  max-width: 500px;
+  margin-inline: auto;
+  line-height: 1.6;
+}
+
+.landing-prompt {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+.role-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+@media (min-width: 860px) {
+  .role-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+}
+
+.role-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 20px;
+  background: var(--surface);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink-900);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+  width: 100%;
+}
+
+.role-card:hover,
+.role-card:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--teal-500);
+  text-decoration: none;
+}
+
+.role-card .role-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.role-card.is-user       .role-icon { background: var(--teal-100);   color: var(--teal-800); }
+.role-card.is-authority  .role-icon { background: var(--blue-100);   color: var(--blue-700); }
+.role-card.is-maintenance .role-icon { background: var(--amber-100); color: var(--amber-700); }
+
+.role-card h2 {
+  font-size: 1.12rem;
+}
+
+.role-card .role-for {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.role-card .role-desc {
+  font-size: 0.86rem;
+  color: var(--ink-500);
+  line-height: 1.55;
+  flex: 1;
+}
+
+.role-card .role-go {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--teal-700);
+  margin-top: 2px;
+}
+
+.role-card.is-authority .role-go { color: var(--blue-700); }
+.role-card.is-maintenance .role-go { color: var(--amber-700); }
+
+.landing-foot {
+  margin-top: 26px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.8rem;
+  line-height: 1.7;
+}
+
+.landing-foot a {
+  color: var(--teal-300);
+  font-weight: 600;
+}
+
+.landing-foot a:hover {
+  color: #fff;
+}
