@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.core.constants import ROLE_AUTHORITY, ROLE_MAINTENANCE, ROLE_USER
-from backend.core.security import decode_access_token
+from backend.core.security import decode_access_token, decode_media_token
 from backend.db.session import get_db
 from backend.models.entities import User
 
@@ -81,3 +81,41 @@ require_maintenance = _role_guard(ROLE_MAINTENANCE)
 # Endpoints that both back-office portals may read (e.g. evidence images).
 require_staff = _role_guard(ROLE_AUTHORITY, ROLE_MAINTENANCE)
 require_any_role = _role_guard(ROLE_USER, ROLE_AUTHORITY, ROLE_MAINTENANCE)
+
+
+def resolve_media_principal(
+    db: Session,
+    *,
+    resource: str,
+    credentials: HTTPAuthorizationCredentials | None,
+    token: str | None,
+) -> User:
+    """Authenticate a media request from either the header or a media token.
+
+    Browsers cannot set an ``Authorization`` header on ``<img>`` or download
+    links, so image endpoints also accept a short-lived ``?token=`` scoped to
+    exactly one object.
+    """
+    raw = credentials.credentials if credentials else None
+    if raw:
+        try:
+            payload = decode_access_token(raw)
+        except jwt.PyJWTError as exc:
+            raise CREDENTIALS_ERROR from exc
+    elif token:
+        try:
+            payload = decode_media_token(token, resource)
+        except jwt.PyJWTError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="This media link has expired. Reload the page to get a new one.",
+            ) from exc
+    else:
+        raise CREDENTIALS_ERROR
+
+    user = db.execute(
+        select(User).where(User.user_id == payload.get("sub"))
+    ).scalar_one_or_none()
+    if user is None or not user.is_active:
+        raise CREDENTIALS_ERROR
+    return user

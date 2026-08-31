@@ -704,3 +704,92 @@ def test_audit_trail_records_authority_actions(client):
     entries = client.get("/api/authority/audit", headers=_auth(token)).json()
     actions = {entry["action"] for entry in entries}
     assert {"report.validate", "report.csv_import", "task.assign"} <= actions
+
+
+# ---------------------------------------------------------------------------
+# Media access: a browser cannot send the Authorization header on an <img>
+# ---------------------------------------------------------------------------
+def test_evidence_image_is_reachable_without_the_auth_header(client):
+    """The link endpoint hands back a URL an <img> tag can actually load."""
+    owner = _login(client, "citizen@test.app")
+    report_id = client.get("/api/user/reports", headers=_auth(owner)).json()["items"][0][
+        "report_id"
+    ]
+
+    link = client.get(f"/api/reports/{report_id}/image", headers=_auth(owner)).json()
+    assert link["expires_in"] > 0
+    assert "token=" in link["url"]
+
+    # No Authorization header at all - exactly what the browser sends.
+    served = client.get(link["url"])
+    assert served.status_code == 200
+    assert served.content == PNG_BYTES
+
+
+def test_media_token_is_scoped_to_one_report(client):
+    owner = _login(client, "citizen@test.app")
+    report_id = client.get("/api/user/reports", headers=_auth(owner)).json()["items"][0][
+        "report_id"
+    ]
+    url = client.get(f"/api/reports/{report_id}/image", headers=_auth(owner)).json()["url"]
+    token = url.split("token=")[1]
+
+    # The same token must not unlock a different report's evidence.
+    other = client.get(f"/api/reports/RS-9001/image/raw?token={token}")
+    assert other.status_code == 401
+
+
+def test_raw_image_without_any_credentials_is_rejected(client):
+    owner = _login(client, "citizen@test.app")
+    report_id = client.get("/api/user/reports", headers=_auth(owner)).json()["items"][0][
+        "report_id"
+    ]
+    assert client.get(f"/api/reports/{report_id}/image/raw").status_code == 401
+
+
+def test_resolution_image_link_and_fetch(client):
+    authority = _login(client, "authority@test.app")
+    maintenance = _login(client, "maintenance@test.app")
+    citizen = _login(client, "citizen@test.app")
+
+    # Create a report of our own so this test does not depend on fixture state.
+    report_id = client.post(
+        "/api/user/reports/json",
+        json={
+            "issue_type": "Waterlogging",
+            "latitude": 22.55,
+            "longitude": 88.35,
+            "severity": "Medium",
+            "description": "Standing water across the accessible path.",
+        },
+        headers=_auth(citizen),
+    ).json()["report_id"]
+
+    task_id = client.post(
+        f"/api/authority/reports/{report_id}/assign",
+        json={"assigned_team": "Team Alpha", "assigned_to": "MN201"},
+        headers=_auth(authority),
+    ).json()["task_id"]
+    client.post(
+        f"/api/maintenance/tasks/{task_id}/resolution",
+        files={"photo": ("fixed.png", io.BytesIO(PNG_BYTES), "image/png")},
+        headers=_auth(maintenance),
+    )
+
+    # Both the assignee and the authority reviewer can obtain a link.
+    for token in (maintenance, authority):
+        link = client.get(
+            f"/api/maintenance/tasks/{task_id}/resolution/link", headers=_auth(token)
+        ).json()
+        assert "token=" in link["url"]
+        served = client.get(link["url"])
+        assert served.status_code == 200
+        assert served.content == PNG_BYTES
+
+
+def test_citizen_cannot_request_a_resolution_image_link(client):
+    token = _login(client, "citizen@test.app")
+    response = client.get(
+        "/api/maintenance/tasks/MT-5001/resolution/link", headers=_auth(token)
+    )
+    assert response.status_code == 403

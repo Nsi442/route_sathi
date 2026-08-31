@@ -100,6 +100,38 @@ def create_access_token(
     return token, minutes * 60
 
 
+def create_media_token(*, subject: str, role: str, resource: str, expires_seconds: int = 900) -> tuple[str, int]:
+    """Short-lived token granting read access to one media object.
+
+    A browser cannot attach an ``Authorization`` header to an ``<img src>`` or
+    a download link, so media URLs carry this instead.  It is scoped to a
+    single resource and expires quickly, mirroring how an S3 presigned URL
+    behaves when object storage is configured.
+    """
+    now = dt.datetime.now(dt.timezone.utc)
+    payload = {
+        "sub": str(subject),
+        "role": role,
+        "scope": "media",
+        "res": resource,
+        "iat": int(now.timestamp()),
+        "exp": int((now + dt.timedelta(seconds=expires_seconds)).timestamp()),
+        "iss": "routesathi",
+    }
+    token = jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    if isinstance(token, bytes):  # PyJWT < 2 compatibility
+        token = token.decode("utf-8")
+    return token, expires_seconds
+
+
+def decode_media_token(token: str, resource: str) -> dict[str, Any]:
+    """Decode a media token and check it was issued for ``resource``."""
+    payload = decode_access_token(token)
+    if payload.get("scope") != "media" or payload.get("res") != resource:
+        raise jwt.InvalidTokenError("token is not valid for this resource")
+    return payload
+
+
 def decode_access_token(token: str) -> dict[str, Any]:
     """Decode and validate a token, raising ``jwt.PyJWTError`` on failure."""
     return jwt.decode(

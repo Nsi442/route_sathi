@@ -14,14 +14,23 @@ from fastapi import (
     status,
 )
 from fastapi.responses import RedirectResponse
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from backend.core.constants import TASK_STATUSES, title_match
-from backend.core.deps import require_maintenance, require_staff
+from backend.core.deps import (
+    bearer_scheme,
+    require_maintenance,
+    require_staff,
+    resolve_media_principal,
+)
+from backend.core.security import create_media_token
 from backend.db.session import get_db
 from backend.models.entities import MaintenanceTask, Report, User
+from backend.core.config import settings
 from backend.schemas.common import Page
+from backend.schemas.reports import ImageAccess
 from backend.schemas.maintenance import (
     MaintenanceSummary,
     TaskNotesUpdate,
@@ -300,13 +309,73 @@ async def upload_resolution_image(
     return task_out(task, _report_for(db, task))
 
 
-@router.get("/tasks/{task_id}/resolution")
-def resolution_image(
+@router.get("/tasks/{task_id}/resolution/link", response_model=ImageAccess)
+def resolution_image_link(
     task_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_staff),
 ):
+    """Return a short-lived link to the resolution photo.
+
+    With S3 configured this is a presigned URL; otherwise it is a URL carrying
+    a scoped media token, because a browser cannot attach the bearer header to
+    an image or download link.
+    """
+    task = _get_task(db, task_id, current_user)
+    if not task.resolution_image_object_key:
+        if task.resolution_image_url:
+            return {
+                "url": task.resolution_image_url,
+                "expires_in": 0,
+                "storage": "external-url",
+                "external": True,
+            }
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No resolution image has been uploaded for this task.",
+        )
+
+    url = storage.presigned_url(task.resolution_image_object_key)
+    if url:
+        return {
+            "url": url,
+            "expires_in": settings.s3_presign_expiry,
+            "storage": "s3",
+            "external": False,
+        }
+
+    token, expires_in = create_media_token(
+        subject=current_user.user_id,
+        role=current_user.role,
+        resource=f"task:{task_id}",
+    )
+    return {
+        "url": f"/api/maintenance/tasks/{task_id}/resolution?token={token}",
+        "expires_in": expires_in,
+        "storage": storage.backend_name(),
+        "external": False,
+    }
+
+
+@router.get("/tasks/{task_id}/resolution")
+def resolution_image(
+    task_id: str,
+    token: str | None = Query(default=None, description="Short-lived media token"),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+):
     """Serve the resolution photo to the maintenance owner or an authority reviewer."""
+    current_user = resolve_media_principal(
+        db,
+        resource=f"task:{task_id}",
+        credentials=credentials,
+        token=token,
+    )
+    if current_user.role not in ("MAINTENANCE", "AUTHORITY"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to view this image.",
+        )
     task = _get_task(db, task_id, current_user)
     if not task.resolution_image_object_key:
         if task.resolution_image_url:

@@ -16,10 +16,12 @@ from fastapi import (
     status,
 )
 from fastapi.responses import RedirectResponse
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from backend.core.config import settings
 from backend.core.constants import (
     ISSUE_TYPES,
     REPORT_STATUSES,
@@ -27,7 +29,13 @@ from backend.core.constants import (
     normalise_issue_type,
     title_match,
 )
-from backend.core.deps import get_current_user, require_user
+from backend.core.deps import (
+    bearer_scheme,
+    get_current_user,
+    require_user,
+    resolve_media_principal,
+)
+from backend.core.security import create_media_token
 from backend.db.geo import nearby
 from backend.db.session import get_db
 from backend.models.entities import MaintenanceTask, Report, User
@@ -402,13 +410,21 @@ def report_image_link(
         if url:
             return {
                 "url": url,
-                "expires_in": 900,
+                "expires_in": settings.s3_presign_expiry,
                 "storage": "s3",
                 "external": False,
             }
+        # No S3 configured: hand back a URL carrying a short-lived, single
+        # resource media token, since a browser cannot attach the bearer
+        # header to an <img> element.
+        token, expires_in = create_media_token(
+            subject=current_user.user_id,
+            role=current_user.role,
+            resource=f"report:{report_id}",
+        )
         return {
-            "url": f"/api/reports/{report_id}/image/raw",
-            "expires_in": 0,
+            "url": f"/api/reports/{report_id}/image/raw?token={token}",
+            "expires_in": expires_in,
             "storage": storage.backend_name(),
             "external": False,
         }
@@ -430,10 +446,21 @@ def report_image_link(
 @router.get("/reports/{report_id}/image/raw")
 def report_image_raw(
     report_id: str,
+    token: str | None = Query(default=None, description="Short-lived media token"),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
-    """Stream the evidence image (S3 redirect, or the development fallback)."""
+    """Stream the evidence image (S3 redirect, or the development fallback).
+
+    Accepts either an ``Authorization`` header or a scoped ``token`` query
+    parameter so the URL can be used directly as an image source.
+    """
+    current_user = resolve_media_principal(
+        db,
+        resource=f"report:{report_id}",
+        credentials=credentials,
+        token=token,
+    )
     report = _authorise_image(db, report_id, current_user)
     if not report.image_object_key:
         if report.image_url:
