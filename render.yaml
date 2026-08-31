@@ -1,0 +1,52 @@
+# Render blueprint for the RouteSathi API.
+#
+# The FastAPI app runs here rather than as a Vercel function because the
+# XGBoost stack (xgboost + scipy + scikit-learn + numpy, ~1 GB installed)
+# exceeds the size limit for a serverless function. Render has no such cap.
+#
+# Deploy: Render Dashboard -> New -> Blueprint -> pick this repository.
+# Secrets are marked `sync: false`, so Render prompts for them instead of
+# ever reading them from the repository.
+
+services:
+  - type: web
+    name: routesathi-api
+    runtime: python
+    plan: free
+    region: singapore          # closest region to the Kolkata deployment
+    branch: main
+    healthCheckPath: /api/health
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn api.index:app --host 0.0.0.0 --port $PORT --workers 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: APP_ENV
+        value: production
+
+      # Cache the trained booster on the writable disk between requests.
+      - key: ML_MODEL_DIR
+        value: /tmp/routesathi-ml
+      - key: ML_ENABLED
+        value: "1"
+
+      # --- set these in the Render dashboard, never in this file ---
+      - key: DATABASE_URL          # Neon pooled connection string
+        sync: false
+      - key: JWT_SECRET            # python -c "import secrets; print(secrets.token_urlsafe(48))"
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ENDPOINT_URL   # leave unset for Amazon S3; set for R2 etc.
+        sync: false
+
+      # Only needed if a browser calls this service directly rather than
+      # through the Vercel proxy. Set to your Vercel domain.
+      - key: CORS_ORIGINS
+        sync: false

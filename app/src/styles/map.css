@@ -1,0 +1,569 @@
+/* ==========================================================================
+   Leaflet map surfaces
+   Markers only - this MVP deliberately draws no routes or navigation lines.
+   ========================================================================== */
+
+.map-shell {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--surface-muted);
+}
+
+.map-shell.is-full {
+  border-radius: 0;
+  border: none;
+  height: calc(100vh - var(--tabbar-height) - 118px);
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  font-family: var(--font);
+  background: #e8eef3;
+}
+
+.map-height-sm { height: 240px; }
+.map-height-md { height: 340px; }
+.map-height-lg { height: 520px; }
+
+/* Custom divIcon markers */
+.rs-marker {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50% 50% 50% 4px;
+  transform: rotate(-45deg);
+  border: 2.5px solid #fff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);
+}
+
+.rs-marker span {
+  transform: rotate(45deg);
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+}
+
+.rs-marker.is-user      { background: #2563eb; border-radius: 50%; transform: none; }
+.rs-marker.is-user span { transform: none; }
+.rs-marker.is-verified  { background: #15803d; }
+.rs-marker.is-review    { background: #d97706; }
+.rs-marker.is-issue     { background: #dc2626; }
+.rs-marker.is-selected  { background: #0f766e; }
+
+.rs-user-pulse {
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.22);
+  animation: pulse 2.2s ease-out infinite;
+}
+
+@keyframes pulse {
+  0%   { transform: scale(0.7); opacity: 0.9; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+
+.leaflet-popup-content {
+  margin: 12px 14px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  min-width: 170px;
+}
+
+.map-popup .popup-title {
+  font-weight: 700;
+  color: var(--ink-900);
+  margin-bottom: 3px;
+}
+
+.map-popup .popup-meta {
+  color: var(--ink-500);
+  font-size: 0.78rem;
+}
+
+.map-popup .popup-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-weight: 600;
+  color: var(--teal-700);
+  cursor: pointer;
+}
+
+/* Floating controls */
+.map-legend {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 500;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  box-shadow: var(--shadow);
+  font-size: 0.72rem;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.map-legend .key { display: flex; align-items: center; gap: 7px; color: var(--ink-700); }
+
+.map-legend .swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  box-shadow: 0 0 0 1px var(--line-strong);
+  flex: none;
+}
+
+.map-locate {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 500;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--teal-700);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.map-picker-hint {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  background: rgba(15, 23, 42, 0.86);
+  color: #fff;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.filter-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: none;
+}
+
+.filter-chips::-webkit-scrollbar { display: none; }
+
+.chip {
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink-700);
+  font-size: 0.81rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  flex: none;
+}
+
+.chip.is-active {
+  background: var(--teal-700);
+  border-color: var(--teal-700);
+  color: #fff;
+}
+
+.radius-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  font-size: 0.83rem;
+}
+
+.radius-control input[type='range'] { flex: 1; accent-color: var(--teal-700); }
+
+/* ==========================================================================
+   Full-screen map screen: floating header + filter sheet
+   ========================================================================== */
+
+.map-screen {
+  position: relative;
+  height: calc(100vh - var(--tabbar-height));
+  overflow: hidden;
+}
+
+.map-screen .map-shell {
+  height: 100%;
+  border: none;
+  border-radius: 0;
+}
+
+/* Floating controls sit over the map rather than stealing height from it. */
+.map-overlay-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px calc(14px + env(safe-area-inset-top, 0px));
+  pointer-events: none;
+}
+
+.map-overlay-header > * {
+  pointer-events: auto;
+}
+
+.map-round-btn {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-900);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.map-round-btn:hover {
+  background: var(--surface-muted);
+}
+
+.map-round-btn.is-active {
+  background: var(--teal-700);
+  border-color: var(--teal-700);
+  color: #fff;
+}
+
+.map-round-btn .filter-count {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--teal-700);
+  color: #fff;
+  font-size: 0.64rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--surface);
+}
+
+.map-search {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.map-search svg {
+  position: absolute;
+  left: 15px;
+  color: var(--ink-400);
+  pointer-events: none;
+}
+
+.map-search input {
+  width: 100%;
+  height: 46px;
+  padding: 0 16px 0 42px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-family: inherit;
+  font-size: 0.92rem;
+  color: var(--ink-900);
+}
+
+.map-search input:focus {
+  outline: 3px solid var(--teal-500);
+  outline-offset: 1px;
+}
+
+/* Result count ribbon under the header. */
+.map-result-pill {
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 590;
+  padding: 7px 15px;
+  border-radius: var(--radius-pill);
+  background: rgba(15, 23, 42, 0.84);
+  color: #fff;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+}
+
+/* --- Filter sheet -------------------------------------------------------- */
+.sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.42);
+  z-index: 700;
+  animation: fade-in 0.16s ease;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.filter-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 710;
+  background: var(--surface);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -8px 30px rgba(15, 23, 42, 0.22);
+  padding: 8px 20px calc(22px + env(safe-area-inset-bottom, 0px));
+  max-height: 82%;
+  overflow-y: auto;
+  animation: sheet-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.sheet-grabber {
+  width: 42px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--line-strong);
+  margin: 6px auto 14px;
+}
+
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.sheet-header h2 {
+  font-size: 1.14rem;
+}
+
+.sheet-close {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-500);
+  cursor: pointer;
+}
+
+.sheet-close:hover {
+  background: var(--surface-muted);
+  color: var(--ink-900);
+}
+
+.sheet-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--teal-700);
+  letter-spacing: 0.03em;
+  margin-bottom: 10px;
+}
+
+.sheet-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-bottom: 20px;
+}
+
+.sheet-chip {
+  padding: 9px 17px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink-700);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sheet-chip.is-on {
+  border-color: var(--teal-700);
+  color: var(--teal-800);
+  background: var(--teal-50);
+}
+
+.sheet-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-bottom: 20px;
+}
+
+.sheet-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.88rem;
+  color: var(--ink-700);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.sheet-check input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--teal-700);
+  cursor: pointer;
+}
+
+.sheet-check .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+.sheet-radius {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.sheet-radius input[type='range'] {
+  flex: 1;
+  accent-color: var(--teal-700);
+}
+
+.sheet-radius .value {
+  min-width: 64px;
+  text-align: right;
+  font-weight: 700;
+  color: var(--ink-900);
+  font-size: 0.88rem;
+}
+
+.sheet-apply {
+  width: 100%;
+  padding: 15px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--teal-800);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.94rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.sheet-apply:hover {
+  background: var(--teal-900);
+}
+
+.sheet-reset {
+  width: 100%;
+  margin-top: 10px;
+  padding: 11px;
+  border: none;
+  background: none;
+  color: var(--ink-500);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.sheet-reset:hover {
+  color: var(--teal-700);
+}
+
+/* On desktop the sheet becomes a panel docked to the left of the map. */
+@media (min-width: 1024px) {
+  .map-screen {
+    height: calc(100vh - 190px);
+  }
+
+  .filter-sheet {
+    right: auto;
+    top: 0;
+    bottom: 0;
+    width: 380px;
+    border-radius: 0;
+    max-height: none;
+    padding-top: 20px;
+    animation: sheet-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes sheet-in {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(0); }
+  }
+
+  .sheet-grabber { display: none; }
+
+  .map-overlay-header {
+    padding: 18px;
+  }
+
+  .map-search input {
+    max-width: 460px;
+  }
+}
+
+/* Leaflet's own zoom control would sit under the floating back button, so it
+   is nudged below the overlay header on the full-screen map. */
+.map-screen .leaflet-top.leaflet-left {
+  top: 78px;
+}
+
+@media (min-width: 1024px) {
+  .map-screen .leaflet-top.leaflet-left {
+    top: 86px;
+  }
+}
+
+/* Without the shell header the map runs to the top of the frame, so the
+   overlay controls clear the notch themselves. */
+.map-screen {
+  height: calc(100vh - var(--tabbar-height));
+}

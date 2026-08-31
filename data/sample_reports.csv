@@ -1,0 +1,11 @@
+report_id,user_id,issue_type,location,latitude,longitude,severity,description,image_url,timestamp,validation_status,status,source
+RS-2001,U1042,Blocked Ramp,"College Street, Kolkata",22.5726,88.3639,High,"Wheelchair ramp blocked by parked vehicle.","https://example.com/RS-2001.jpg",2026-08-31T10:30:00+05:30,Needs Review,Submitted,Community
+RS-2002,U1043,Damaged Footpath,"Park Street, Kolkata",22.5535,88.3529,Medium,"Uneven footpath surface makes wheelchair movement difficult.","https://example.com/RS-2002.jpg",2026-08-30T15:20:00+05:30,Needs Review,Submitted,Community
+RS-2003,U1044,Waterlogging,"Salt Lake, Kolkata",22.5726,88.4331,High,"Waterlogging blocks the accessible pathway.","https://example.com/RS-2003.jpg",2026-08-29T17:10:00+05:30,Needs Review,Submitted,Community
+RS-2004,U1045,No Accessible Entrance,"New Market, Kolkata",22.5615,88.3520,High,"Side entrance has three steps and no ramp alternative.","https://example.com/RS-2004.jpg",2026-08-28T09:05:00+05:30,Valid,Under Review,Field Survey
+RS-2005,U1046,Blocked Crossing,"Esplanade, Kolkata",22.5644,88.3510,Medium,"Construction barriers block the tactile crossing.",,2026-08-27T18:45:00+05:30,Needs Review,Submitted,Municipal
+RS-2006,U1047,Stairs / No Ramp,"Sealdah, Kolkata",22.5675,88.3707,High,"Foot overbridge has stairs only, no ramp or lift.","https://example.com/RS-2006.jpg",2026-08-26T08:15:00+05:30,Valid,Assigned,Citizen App
+RS-2007,U1048,Footpath Damaged,"Gariahat, Kolkata",22.5186,88.3639,Low,"Cracked footpath slabs near the market entrance.","https://example.com/RS-2007.jpg",2026-08-25T12:00:00+05:30,Needs Review,Submitted,Community
+RS-2008,U1049,Waterlogging,"Howrah Bridge, Kolkata",22.5851,88.3468,Medium,"Standing water at the base of the approach ramp.",,2026-08-24T16:30:00+05:30,Needs Review,Submitted,Community
+RS-2009,U1050,Ramp Blocked,"Jadavpur, Kolkata",22.4991,88.3714,Medium,"Two-wheelers parked across the ramp entrance.","https://example.com/RS-2009.jpg",2026-08-23T11:20:00+05:30,Valid,In Progress,Citizen App
+RS-2010,U1051,Other,"Maidan, Kolkata",22.5600,88.3450,Low,"Accessibility signage faded and unreadable.",,2026-08-22T14:50:00+05:30,Needs Review,Submitted,Community

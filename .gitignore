@@ -30,9 +30,11 @@ secrets.json
 
 # Local database / dev artefacts
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
-routesathi.db
+routesathi.db*
 /tmp/
 .models_cache/
 *.joblib
