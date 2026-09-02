@@ -71,15 +71,15 @@
 
 .notif-dot {
   position: absolute;
-  top: 6px;
-  right: 6px;
-  min-width: 17px;
-  height: 17px;
+  top: 4px;
+  right: 4px;
+  min-width: 19px;
+  height: 19px;
   padding: 0 4px;
   border-radius: var(--radius-pill);
   background: var(--red-700);
   color: #fff;
-  font-size: 0.62rem;
+  font-size: 0.74rem;
   font-weight: 700;
   display: grid;
   place-items: center;
@@ -114,7 +114,7 @@
   justify-content: center;
   gap: 3px;
   color: var(--ink-500);
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   font-weight: 600;
   text-decoration: none;
 }
@@ -222,7 +222,7 @@
 .around-tile.is-issues .count { color: var(--red-700); }
 
 .around-tile .label {
-  font-size: 0.68rem;
+  font-size: 0.79rem;
   color: var(--ink-500);
   font-weight: 600;
 }
@@ -1145,4 +1145,20 @@
 
 .landing-foot a:hover {
   color: #fff;
+}
+
+
+@media (pointer: coarse) {
+  .app-topbar .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .tabbar a {
+    min-height: 56px;
+  }
+
+  .role-card {
+    min-height: 56px;
+  }
 }

@@ -77,6 +77,10 @@ class Settings:
         # Custom endpoint for S3-compatible providers (Cloudflare R2, Supabase
         # Storage, Backblaze B2, MinIO). Empty means real Amazon S3.
         self.s3_endpoint_url: str = os.getenv("S3_ENDPOINT_URL", "").strip()
+        # On EC2 the instance profile supplies credentials, so no keys need to
+        # live on the box at all. boto3 resolves them from the metadata
+        # service; we only need to know a bucket was configured.
+        self.aws_use_instance_role: bool = _bool("AWS_USE_INSTANCE_ROLE", False)
 
         # --- machine learning -------------------------------------------
         self.ml_enabled: bool = _bool("ML_ENABLED", True)
@@ -89,6 +93,19 @@ class Settings:
             if o.strip()
         ]
         self.seed_default_password: str = os.getenv("SEED_DEFAULT_PASSWORD", "Password123!")
+        # When true the API also serves the built React app from `dist/`, so a
+        # single EC2 instance can run the whole product without a separate web
+        # server. Nginx is still the better front door in production; this is
+        # the fallback and what makes a one-command local prod check possible.
+        self.serve_frontend: bool = _bool("SERVE_FRONTEND", False)
+        self.frontend_dist: str = os.getenv(
+            "FRONTEND_DIST",
+            str(Path(__file__).resolve().parents[2] / "dist"),
+        )
+        # Hosts allowed to reach the API. "*" disables the check.
+        self.trusted_hosts: list[str] = [
+            h.strip() for h in os.getenv("TRUSTED_HOSTS", "*").split(",") if h.strip()
+        ]
         self.max_upload_bytes: int = _int("MAX_UPLOAD_BYTES", 8 * 1024 * 1024)
 
     # ------------------------------------------------------------------
@@ -116,8 +133,16 @@ class Settings:
 
     @property
     def s3_enabled(self) -> bool:
-        """True when a bucket is reachable with the configured credentials."""
-        return bool(self.s3_bucket and self.aws_access_key_id and self.aws_secret_access_key)
+        """True when object storage is configured.
+
+        Either explicit keys, or an EC2 instance role that boto3 will resolve
+        from the instance metadata service.
+        """
+        if not self.s3_bucket:
+            return False
+        if self.aws_use_instance_role:
+            return True
+        return bool(self.aws_access_key_id and self.aws_secret_access_key)
 
     @property
     def is_aws_s3(self) -> bool:

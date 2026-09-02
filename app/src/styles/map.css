@@ -567,3 +567,51 @@
 .map-screen {
   height: calc(100vh - var(--tabbar-height));
 }
+
+
+@media (pointer: coarse) {
+  .map-round-btn {
+    width: 48px;
+    height: 48px;
+  }
+
+  .map-search input {
+    height: 48px;
+  }
+
+  .sheet-apply {
+    min-height: 52px;
+  }
+
+  .sheet-close {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* Leaflet ships its own controls at 30px and its attribution at 11px. Both
+   are below what a fingertip and an eye need, so they are brought up to the
+   same standard as the rest of the app. */
+@media (pointer: coarse) {
+  .leaflet-touch .leaflet-bar a,
+  .leaflet-control-zoom a {
+    width: 44px;
+    height: 44px;
+    line-height: 44px;
+    font-size: 1.24rem;
+  }
+}
+
+/* Absolute px, not rem: the root font-size is 15px here, so a rem value
+   under 0.74 lands below 11px and defeats the point. */
+.leaflet-container .leaflet-control-attribution,
+.leaflet-container .leaflet-control-attribution a {
+  font-size: 11.5px;
+  padding-block: 2px;
+}
+
+/* The glyph inside a map pin is decorative, but it still has to be readable
+   against the pin at a glance. Absolute px for the same reason as above. */
+.rs-marker span {
+  font-size: 11.5px;
+}

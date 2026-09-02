@@ -1,0 +1,55 @@
+# RouteSathi API — systemd unit
+#
+# Install:
+#   sudo cp deploy/systemd/routesathi-api.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now routesathi-api
+#
+# Logs:  sudo journalctl -u routesathi-api -f
+
+[Unit]
+Description=RouteSathi API (FastAPI + XGBoost)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=routesathi
+Group=routesathi
+WorkingDirectory=/opt/routesathi
+
+# Secrets live here, root-owned and chmod 600 — never in the repository.
+EnvironmentFile=/etc/routesathi/routesathi.env
+
+ExecStart=/opt/routesathi/.venv/bin/gunicorn api.index:app \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --workers 2 \
+    --bind 127.0.0.1:8000 \
+    --timeout 120 \
+    --graceful-timeout 30 \
+    --access-logfile - \
+    --error-logfile -
+
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=5
+
+# The first request after a restart trains and caches the priority model.
+TimeoutStartSec=120
+
+# Hardening: the service needs nothing outside its own directory and /tmp.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/routesathi /tmp
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=routesathi-api
+
+[Install]
+WantedBy=multi-user.target

@@ -11,10 +11,14 @@ from __future__ import annotations
 
 import logging
 
+import os
+
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy import text
 
 from backend.core.config import settings
@@ -71,6 +75,9 @@ def create_app() -> FastAPI:
         redoc_url="/api/redoc",
         openapi_url="/api/openapi.json",
     )
+
+    if settings.trusted_hosts and settings.trusted_hosts != ["*"]:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
 
     if settings.cors_origins:
         app.add_middleware(
@@ -142,7 +149,52 @@ def create_app() -> FastAPI:
             "portals": ["USER", "AUTHORITY", "MAINTENANCE"],
         }
 
+    if settings.serve_frontend:
+        _mount_frontend(app)
+
     return app
+
+
+def _mount_frontend(app: FastAPI) -> None:
+    """Serve the built React app alongside the API from one process.
+
+    Registered after every router so it can never shadow an API route, and the
+    catch-all explicitly refuses /api paths so a mistyped endpoint returns a
+    JSON 404 rather than the SPA shell — which would otherwise look like a
+    working page and hide the real error.
+    """
+    dist = settings.frontend_dist
+    index = os.path.join(dist, "index.html")
+
+    if not os.path.isfile(index):
+        logger.warning(
+            "SERVE_FRONTEND is on but %s has no index.html - run `npm run build`", dist
+        )
+        return
+
+    assets = os.path.join(dist, "assets")
+    if os.path.isdir(assets):
+        # Vite fingerprints these filenames, so they can be cached hard.
+        app.mount("/assets", StaticFiles(directory=assets), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def spa(full_path: str):
+        if full_path.startswith("api/") or full_path == "api":
+            return JSONResponse(status_code=404, content={"detail": "Not found."})
+
+        candidate = os.path.normpath(os.path.join(dist, full_path))
+        # normpath collapses "..", so this rejects any attempt to escape dist.
+        if (
+            full_path
+            and candidate.startswith(os.path.abspath(dist) + os.sep)
+            and os.path.isfile(candidate)
+        ):
+            return FileResponse(candidate)
+
+        # Every other path is a client-side route.
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
+
+    logger.info("serving the frontend from %s", dist)
 
 
 app = create_app()

@@ -456,7 +456,7 @@
 .grow { flex: 1; min-width: 0; }
 .muted { color: var(--ink-500); }
 .small { font-size: 0.82rem; }
-.tiny { font-size: 0.74rem; }
+.tiny { font-size: 0.78rem; }
 .strong { font-weight: 600; }
 .center { text-align: center; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -516,4 +516,66 @@
   background: var(--surface-muted);
   border: 1px solid var(--line);
   border-radius: var(--radius);
+}
+
+/* ==========================================================================
+   Touch targets
+   On a coarse pointer every control gets at least a 44px hit area, the size
+   a fingertip actually needs. Desktop keeps the tighter sizing, because a
+   mouse is precise and inflating dense tables there would hurt scanning.
+   This matters more here than in most products: the people using this app
+   are the ones a 30px chip fails first.
+   ========================================================================== */
+@media (pointer: coarse) {
+  .chip,
+  .sheet-chip {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    padding-block: 0;
+  }
+
+  .btn,
+  .btn-sm {
+    min-height: 44px;
+  }
+
+  .input,
+  .select {
+    min-height: 44px;
+  }
+
+  .textarea {
+    min-height: 112px;
+  }
+
+  .segmented button,
+  .choice {
+    min-height: 48px;
+  }
+
+  .sheet-check {
+    min-height: 40px;
+  }
+
+  .sheet-check input[type='checkbox'] {
+    width: 21px;
+    height: 21px;
+  }
+
+  /* A row in a list is the tap target, not just the text inside it. */
+  .list-row {
+    min-height: 60px;
+  }
+}
+
+@media (pointer: coarse) {
+  /* Small inline links ("View all", "See all") are still tap targets. */
+  a.tiny,
+  a.small {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding-inline: 4px;
+  }
 }

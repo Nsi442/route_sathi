@@ -61,10 +61,15 @@ def _client():
 
         kwargs = {
             "region_name": settings.aws_region,
-            "aws_access_key_id": settings.aws_access_key_id,
-            "aws_secret_access_key": settings.aws_secret_access_key,
             "config": Config(signature_version="s3v4", retries={"max_attempts": 3}),
         }
+        # With an instance role we pass no keys at all and let boto3 walk its
+        # credential chain to the EC2 metadata service. That keeps long-lived
+        # secrets off the server entirely, and the role can be rotated in IAM
+        # without touching the box.
+        if not settings.aws_use_instance_role:
+            kwargs["aws_access_key_id"] = settings.aws_access_key_id
+            kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
         # Any S3-compatible provider (Cloudflare R2, Supabase, Backblaze,
         # MinIO) works by pointing the same client at its endpoint.
         if settings.s3_endpoint_url:
@@ -81,7 +86,7 @@ def backend_name() -> str:
     if _client() is None:
         return "database-fallback"
     if not settings.s3_endpoint_url:
-        return "s3"
+        return "s3-instance-role" if settings.aws_use_instance_role else "s3"
     host = settings.s3_endpoint_url.split("//")[-1].split("/")[0]
     if "r2.cloudflarestorage.com" in host:
         return "cloudflare-r2"

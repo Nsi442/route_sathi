@@ -498,31 +498,51 @@ Set `ML_ENABLED=0` to use the rule engine exclusively. See [`docs/ML.md`](docs/M
 
 ## 13. Deployment
 
-The frontend deploys to **Vercel**; the API deploys to **Render**, because the
-XGBoost stack (~948 MB installed) exceeds the size limit for a Vercel Python
-function. Vercel proxies `/api/*` to Render server-side, so the browser still
-sees a single origin, there is no CORS, and no API hostname is compiled into the
-frontend bundle.
+Three supported paths. Pick one:
+
+| | What runs where | Best for |
+| --- | --- | --- |
+| **AWS EC2** *(primary)* | Everything on one instance: nginx + FastAPI + PostgreSQL/PostGIS, photos in S3 | Full control, one bill, real XGBoost |
+| Render + Vercel | API on Render, frontend on Vercel | No server to manage |
+| Vercel only | Frontend and API as functions, ML dropped | Simplest, no XGBoost in production |
+
+### AWS EC2 — one instance runs the whole product
 
 ```
-GitHub ──┬──▶ Vercel ── React frontend ──/api/*──┐
-         │                                        ▼
-         └──▶ Render ── FastAPI + XGBoost ──▶ Neon PostgreSQL + PostGIS
-                                           └──▶ Amazon S3
+Browser ──:80──▶  nginx ──┬─ /       → dist/ (React build)
+                          └─ /api/*  → gunicorn → FastAPI + XGBoost
+                                                      │
+                          PostgreSQL 16 + PostGIS ◀────┤
+                                                      ▼
+                                                 Amazon S3
 ```
 
-Order: Neon → S3 → Render (blueprint in [`render.yaml`](render.yaml)) → put the
-Render hostname into [`vercel.json`](vercel.json) → Vercel.
+```bash
+ssh ubuntu@<instance-ip>
+sudo apt-get update && sudo apt-get install -y git
+sudo git clone https://github.com/Nsi442/route_sathi.git /opt/routesathi
+sudo bash /opt/routesathi/deploy/setup-ec2.sh
+```
 
-**Credentials go in the Render dashboard only** — never in the repository. The
-blueprint marks every secret `sync: false` so Render prompts for it.
+The script installs everything, creates the database and PostGIS extension,
+builds the frontend, generates a JWT secret and database password into a
+root-owned `chmod 600` file outside the repository, and starts the API behind
+nginx. It is idempotent, so re-running it is also how you deploy updates.
 
-Full step-by-step guide, free-tier caveats and troubleshooting:
-[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+**Attach an IAM role to the instance for S3** rather than putting keys on the
+box — then the only storage config is `S3_BUCKET`, `AWS_REGION` and
+`AWS_USE_INSTANCE_ROLE=1`, and AWS rotates the credentials itself.
 
-To run everything on Vercel instead, drop `xgboost`, `scikit-learn` and `numpy`
-from `requirements.txt`; the API falls back to the rule engine with no code
-change (89.7% identical priority bands, never more than one band apart).
+Full guide, including sizing, HTTPS and troubleshooting:
+[`docs/EC2.md`](docs/EC2.md). Deployment assets live in
+[`deploy/`](deploy/).
+
+### The other two paths
+
+Render + Vercel keeps XGBoost and needs no server administration —
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). Vercel alone is simplest but cannot
+fit the ML stack in a serverless function, so priority falls back to the rule
+engine with no code change (89.7% identical bands, never more than one apart).
 
 ## 14. Git workflow
 

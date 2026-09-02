@@ -989,3 +989,57 @@ def test_rejected_repair_leaves_the_facility_blocked(client):
     ).json()
     assert detail["status"] == "In Progress"
     assert detail["status"] != "Resolved"
+
+
+# ---------------------------------------------------------------------------
+# Single-process mode: one server for the API and the built frontend
+# ---------------------------------------------------------------------------
+def test_spa_catchall_never_swallows_api_paths(tmp_path):
+    """A mistyped API path must return JSON 404, not the SPA shell.
+
+    Returning index.html for /api/typo would render a working-looking page and
+    hide the real error, which is exactly the bug that wastes an afternoon.
+    """
+    import importlib
+    import os
+
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>spa</title>")
+    (dist / "assets" / "app.js").write_text("console.log(1)")
+
+    os.environ["SERVE_FRONTEND"] = "1"
+    os.environ["FRONTEND_DIST"] = str(dist)
+    try:
+        from backend.core import config as config_module
+
+        config_module.get_settings.cache_clear()
+        config_module.settings = config_module.Settings()
+
+        import backend.main as main_module
+
+        importlib.reload(main_module)
+        with TestClient(main_module.app) as spa_client:
+            # The SPA answers real routes.
+            assert spa_client.get("/").status_code == 200
+            assert "spa" in spa_client.get("/map").text
+            assert spa_client.get("/assets/app.js").status_code == 200
+
+            # But never an API path.
+            missing = spa_client.get("/api/definitely-not-a-route")
+            assert missing.status_code == 404
+            assert missing.headers["content-type"].startswith("application/json")
+
+            # And never a file outside the build directory.
+            escaped = spa_client.get("/../../etc/passwd")
+            assert "root:" not in escaped.text
+    finally:
+        os.environ.pop("SERVE_FRONTEND", None)
+        os.environ.pop("FRONTEND_DIST", None)
+        from backend.core import config as config_module
+
+        config_module.get_settings.cache_clear()
+        config_module.settings = config_module.Settings()
+        import backend.main as main_module
+
+        importlib.reload(main_module)
